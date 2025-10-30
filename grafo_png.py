@@ -4,7 +4,10 @@ from graph import GrafoCidade
 from nodo import Node
 from models import Veiculo, Pedido, Motorizacao, EstadoVeiculo
 
-def desenhar_grafo_com_elementos(grafo: GrafoCidade, veiculos, pedidos, filename="grafo_cidade.png"):
+
+def desenhar_grafo_com_elementos(
+    grafo: GrafoCidade, veiculos, pedidos, filename="grafo_cidade.png"
+):
     G = nx.DiGraph()
 
     # Adiciona nós e arestas
@@ -17,7 +20,7 @@ def desenhar_grafo_com_elementos(grafo: GrafoCidade, veiculos, pedidos, filename
 
     pos = {no: no.position for no in grafo.nos}
 
-    plt.figure(figsize=(15, 15))
+    plt.figure(figsize=(9, 7))
 
     # --- Desenha arestas ---
     nx.draw_networkx_edges(G, pos, edge_color="gray", arrows=True, alpha=0.5)
@@ -27,22 +30,45 @@ def desenhar_grafo_com_elementos(grafo: GrafoCidade, veiculos, pedidos, filename
     estacoes_ev = [n for n in grafo.nos if n.energy_chargers > 0]
     normais = [n for n in grafo.nos if n not in postos_gas + estacoes_ev]
 
-    nx.draw_networkx_nodes(G, pos, nodelist=normais, node_color="lightblue", node_size=600, label="Nó normal")
-    nx.draw_networkx_nodes(G, pos, nodelist=postos_gas, node_color="orange", node_shape="s", node_size=800, label="Posto Gasolina")
-    nx.draw_networkx_nodes(G, pos, nodelist=estacoes_ev, node_color="limegreen", node_shape="D", node_size=800, label="Estação Elétrica")
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        nodelist=normais,
+        node_color="lightblue",
+        node_size=600,
+        label="Nó normal",
+    )
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        nodelist=postos_gas,
+        node_color="orange",
+        node_shape="s",
+        node_size=800,
+        label="Posto Gasolina",
+    )
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        nodelist=estacoes_ev,
+        node_color="limegreen",
+        node_shape="D",
+        node_size=800,
+        label="Estação Elétrica",
+    )
 
     # --- Desenha veículos ---
-    
+
     labels_veiculos_adicionados = set()
-    
+
     for v in veiculos:
         cor = "green" if v.motorizacao == Motorizacao.ELETRICO else "red"
-        
+
         label_veiculo = f"Veículo {v.motorizacao.name}"
         if label_veiculo in labels_veiculos_adicionados:
-            label_veiculo = "" 
+            label_veiculo = ""
         else:
-            labels_veiculos_adicionados.add(label_veiculo) 
+            labels_veiculos_adicionados.add(label_veiculo)
 
         plt.scatter(
             v.localizacao_atual.position[0],
@@ -52,14 +78,14 @@ def desenhar_grafo_com_elementos(grafo: GrafoCidade, veiculos, pedidos, filename
             marker="^",
             edgecolors="black",
             label=label_veiculo,
-            zorder=3
+            zorder=3,
         )
 
     # --- Desenha pedidos (origem) ---
     label_pedido_adicionado = False
-    
+
     for p in pedidos:
-        
+
         label_pedido = ""
         if not label_pedido_adicionado:
             label_pedido = "Origem Pedido"
@@ -73,10 +99,12 @@ def desenhar_grafo_com_elementos(grafo: GrafoCidade, veiculos, pedidos, filename
             marker="*",
             edgecolors="black",
             label=label_pedido,
-            zorder=3
+            zorder=3,
         )
 
-    nx.draw_networkx_labels(G, pos, {n: str(n.position) for n in grafo.nos}, font_size=9)
+    nx.draw_networkx_labels(
+        G, pos, {n: str(n.position) for n in grafo.nos}, font_size=9
+    )
 
     plt.legend()
     plt.title("Mapa da Cidade - Veículos, Pedidos e Infraestrutura")
