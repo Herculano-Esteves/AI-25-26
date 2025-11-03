@@ -1,5 +1,5 @@
 from enum import Enum, auto
-from typing import Optional, List
+from typing import Optional, List, Tuple
 from nodo import Node
 
 
@@ -51,7 +51,7 @@ class Veiculo:
         self,
         id_veiculo: str,
         motorizacao: Motorizacao,
-        localizacao_atual: Node,
+        nodo_atual: Node,
         capacidade_passageiros: int,
         custo_por_km: float,
         autonomia_maxima_km: float,
@@ -62,7 +62,7 @@ class Veiculo:
     ) -> None:
         self.id_veiculo = id_veiculo
         self.motorizacao = motorizacao
-        self.localizacao_atual = localizacao_atual
+        self.nodo_atual = nodo_atual
         self.capacidade_passageiros = capacidade_passageiros
         self.custo_por_km = custo_por_km
         self.autonomia_maxima_km = autonomia_maxima_km
@@ -76,11 +76,25 @@ class Veiculo:
         self.rota_atribuida = rota_atribuida if rota_atribuida is not None else []
         self.pedido_atual = pedido_atual
 
+        # A posição (x, y) exata para desenho
+        # Começa na posição do seu nó inicial
+        self.localizacao_atual_coords: Tuple[float, float] = nodo_atual.position
+
+        # O nó de onde partiu (None se estiver parado)
+        self.nodo_origem: Optional[Node] = None
+        # O nó para onde vai (None se estiver parado)
+        self.nodo_destino: Optional[Node] = None
+
+        # O tempo total em 'minutos' (da aresta) para a viagem
+        self.tempo_viagem_total: float = 0.0
+        # O tempo em 'minutos' (simulado) que já passou nesta viagem
+        self.tempo_viagem_passado: float = 0.0
+
     def __repr__(self) -> str:
         return (
             f"Veiculo(id={self.id_veiculo}, "
             f"motor={self.motorizacao.name}, "
-            f"loc={self.localizacao_atual.position}, "
+            f"loc={self.nodo_atual.position}, "
             f"estado={self.estado.name})"
         )
 

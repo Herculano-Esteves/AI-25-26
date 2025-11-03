@@ -3,14 +3,16 @@ import random
 from graph import GrafoCidade
 from nodo import Node
 from models import Veiculo, Pedido, Motorizacao
-from grafo_png import desenhar_grafo_com_elementos
 
 
 def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
+    """
+    Garante que existe pelo menos um ponto de interesse (posto de gasolina ou
+    estação de carregamento) no mapa, convertendo um nó aleatório se necessário.
+    """
     if tipo_ponto == Motorizacao.ELETRICO:
         if any(n.energy_chargers > 0 for n in todos_os_nos):
             return
-
         # Converte um nó aleatório
         no_a_converter = random.choice(todos_os_nos)
         no_a_converter.energy_chargers = random.randint(2, 4)
@@ -18,13 +20,16 @@ def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
     elif tipo_ponto == Motorizacao.COMBUSTAO:
         if any(n.gas_pumps > 0 for n in todos_os_nos):
             return
-
         # Converte um nó aleatório
         no_a_converter = random.choice(todos_os_nos)
         no_a_converter.gas_pumps = random.randint(2, 4)
 
 
 def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1):
+    """
+    Gera um novo mapa (GrafoCidade), uma lista de Veículos e uma lista de Pedidos.
+    Esta função é chamada pelo app_gui.py.
+    """
     mapa = GrafoCidade()
     nos_criados = {}
 
@@ -56,9 +61,7 @@ def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev
         distancia = 1.0
         tempo = random.uniform(1.5, 3.0)
 
-        mapa.adicionar_aresta(
-            no_origem, no_destino, distancia, tempo, True
-        )
+        mapa.adicionar_aresta(no_origem, no_destino, distancia, tempo, True)
 
     # Criar Veículos
     todos_os_nos = list(nos_criados.values())
@@ -112,58 +115,3 @@ def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev
         f"✅ Mapa gerado: {largura}x{altura} ({len(todos_os_nos)} nós). {len(veiculos)} veículos e {len(pedidos)} pedidos criados."
     )
     return mapa, veiculos, pedidos
-
-
-def main():
-    mapa, veiculos, pedidos = criar_mapa_gerado(9, 11, 0.03, 0.01)
-
-    opcao = -1
-
-    while opcao != 0:
-        print("\n=== MENU GRAFO CIDADE ===")
-        print("1 - Imprimir Grafo")
-        print("2 - Desenhar Grafo e gerar PNG")
-        print("3 - Listar Nós")
-        print("4 - Listar Arestas")
-        print("5 - Listar Veículos")
-        print("0 - Sair")
-
-        try:
-            opcao = int(input("Escolha uma opção -> "))
-        except ValueError:
-            print("Opção inválida.")
-            continue
-
-        if opcao == 0:
-            print("Saindo...")
-        elif opcao == 1:
-            print(mapa)
-            input("Prima Enter para continuar...")
-        elif opcao == 2:
-            desenhar_grafo_com_elementos(mapa, veiculos, pedidos)
-            input("Prima Enter para continuar...")
-        elif opcao == 3:
-            print("Nós do grafo:")
-            for n in mapa.nos:
-                print(" -", n)
-            input("Prima Enter para continuar...")
-        elif opcao == 4:
-            print("Arestas do grafo:")
-            for origem, vizinhos in mapa.adj.items():
-                for destino, peso in vizinhos.items():
-                    print(f"{origem.position} -> {destino.position} | {peso}")
-            input("Prima Enter para continuar...")
-        elif opcao == 5:
-            print("Veículos no sistema:")
-            if not veiculos:
-                print(" - (Nenhum veículo carregado)")
-            else:
-                for v in veiculos:
-                    print(f" - {v}")
-            input("Prima Enter para continuar...")
-        else:
-            print("Opção não reconhecida.")
-
-
-if __name__ == "__main__":
-    main()

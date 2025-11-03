@@ -64,7 +64,7 @@ class GrafoCidade:
         # Método auxiliar para imprimir o grafo de forma legível
         output = "Grafo da Cidade:\n"
         output += f"Total de Nós: {len(self.nos)}\n"
-        output += "--- Arestas ---\n"
+        output += "--- Arestas\n"
 
         if not self.adj:
             return output + "(Grafo vazio)"
