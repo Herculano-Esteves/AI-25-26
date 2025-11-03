@@ -6,10 +6,6 @@ from models import Veiculo, Pedido, Motorizacao
 
 
 def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
-    """
-    Garante que existe pelo menos um ponto de interesse (posto de gasolina ou
-    estação de carregamento) no mapa, convertendo um nó aleatório se necessário.
-    """
     if tipo_ponto == Motorizacao.ELETRICO:
         if any(n.energy_chargers > 0 for n in todos_os_nos):
             return
@@ -26,10 +22,6 @@ def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
 
 
 def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1):
-    """
-    Gera um novo mapa (GrafoCidade), uma lista de Veículos e uma lista de Pedidos.
-    Esta função é chamada pelo app_gui.py.
-    """
     mapa = GrafoCidade()
     nos_criados = {}
 
@@ -112,6 +104,6 @@ def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev
         pedidos.append(Pedido(i + 1, origem, destino, random.randint(1, 4)))
 
     print(
-        f"✅ Mapa gerado: {largura}x{altura} ({len(todos_os_nos)} nós). {len(veiculos)} veículos e {len(pedidos)} pedidos criados."
+        f"Mapa gerado: {largura}x{altura} ({len(todos_os_nos)} nós). {len(veiculos)} veículos e {len(pedidos)} pedidos criados."
     )
     return mapa, veiculos, pedidos
