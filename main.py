@@ -3,6 +3,7 @@ import random
 from graph import GrafoCidade
 from nodo import Node
 from models import Veiculo, Pedido, Motorizacao
+from typing import Tuple, List
 
 
 def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
@@ -21,7 +22,9 @@ def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
         no_a_converter.gas_pumps = random.randint(2, 4)
 
 
-def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1):
+def criar_mapa_gerado(
+    largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1
+) -> Tuple[GrafoCidade, List[Veiculo], List[Pedido]]:
     mapa = GrafoCidade()
     nos_criados = {}
 
@@ -94,16 +97,17 @@ def criar_mapa_gerado(largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev
     # Criar 5 Pedidos Aleatórios
     pedidos = []
     for i in range(5):
-        origem = random.choice(todos_os_nos)
-        destino = random.choice(todos_os_nos)
-
-        # Garante que origem e destino não são iguais
-        while origem == destino:
-            destino = random.choice(todos_os_nos)
-
-        pedidos.append(Pedido(i + 1, origem, destino, random.randint(1, 4)))
+        pedidos.append(criar_pedido_aleatorio(todos_os_nos))
 
     print(
         f"Mapa gerado: {largura}x{altura} ({len(todos_os_nos)} nós). {len(veiculos)} veículos e {len(pedidos)} pedidos criados."
     )
     return mapa, veiculos, pedidos
+
+
+def criar_pedido_aleatorio(nos: List[Node]) -> Pedido:
+    origem = random.choice(nos)
+    destino = random.choice(nos)
+    while origem == destino:
+        destino = random.choice(nos)
+    return Pedido(origem, destino, random.randint(1, 7))

@@ -17,16 +17,18 @@ class EstadoVeiculo(Enum):
 
 
 class Pedido:
+    idPedido_counter = 1
+
     def __init__(
         self,
-        id_pedido: int,
         origem: Node,
         destino: Node,
         num_passageiros: int,
         prioridade: int = 1,  # (1=baixa, 5=alta)
         pref_ambiental: bool = False,  # (True se prefere elétrico)
     ) -> None:
-        self.id_pedido = id_pedido
+        self.id_pedido = Pedido.idPedido_counter
+        Pedido.idPedido_counter += 1
         self.origem = origem
         self.destino = destino
         self.num_passageiros = num_passageiros

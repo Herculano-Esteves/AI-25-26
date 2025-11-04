@@ -9,6 +9,7 @@ from graph import GrafoCidade
 
 # Funções Auxiliares do A*
 
+
 def _distancia_heuristica(a: Node, b: Node) -> float:
     (x1, y1) = a.position
     (x2, y2) = b.position
@@ -25,7 +26,10 @@ def _reconstruir_caminho(came_from: Dict[Node, Node], current: Node) -> List[Nod
 
 # Implementação A*
 
-def procurar_rota_a_star(mapa: GrafoCidade, inicio: Node, fim: Node) -> Optional[List[Node]]:
+
+def procurar_rota_a_star(
+    mapa: GrafoCidade, inicio: Node, fim: Node
+) -> Optional[List[Node]]:
     closed_set: Set[Node] = set()
     open_set = []
     heapq.heappush(open_set, (0, hash(inicio), inicio))
@@ -35,15 +39,15 @@ def procurar_rota_a_star(mapa: GrafoCidade, inicio: Node, fim: Node) -> Optional
     came_from: Dict[Node, Node] = {}
 
     # Inicializa todos os custos a infinito.
-    g_score: Dict[Node, float] = {no: float('inf') for no in mapa.nos}
+    g_score: Dict[Node, float] = {no: float("inf") for no in mapa.nos}
     g_score[inicio] = 0.0
 
     # f_score: Custo total estimado (g + h) do início ao fim, passando por 'n'.
-    f_score: Dict[Node, float] = {no: float('inf') for no in mapa.nos}
-    f_score[inicio] = _distancia_heuristica(inicio, fim) # f do início = h
+    f_score: Dict[Node, float] = {no: float("inf") for no in mapa.nos}
+    f_score[inicio] = _distancia_heuristica(inicio, fim)  # f do início = h
 
     while open_set:
-        
+
         # Obtém o nó da priority queue com o menor f_score
         current_f, _, current = heapq.heappop(open_set)
         open_set_map.remove(current)
@@ -66,19 +70,23 @@ def procurar_rota_a_star(mapa: GrafoCidade, inicio: Node, fim: Node) -> Optional
             aresta = mapa.obter_peso_aresta(current, vizinho)
             if aresta is None:
                 continue
-            
+
             # A* otimiza pelo *tempo* (índice 1)
             distancia_aresta, tempo_aresta = aresta
-            
+
             # Calcula o custo 'g'
-            tentative_g_score = g_score[current] + tempo_aresta
+            tentative_g_score = (
+                g_score[current] + tempo_aresta + distancia_aresta
+            )  # melhorar depois o custo
 
             # Verificar se este é um caminho melhor
             if tentative_g_score < g_score[vizinho]:
                 came_from[vizinho] = current
                 g_score[vizinho] = tentative_g_score
-                f_score[vizinho] = tentative_g_score + _distancia_heuristica(vizinho, fim)
-                
+                f_score[vizinho] = tentative_g_score + _distancia_heuristica(
+                    vizinho, fim
+                )
+
                 if vizinho not in open_set_map:
                     heapq.heappush(open_set, (f_score[vizinho], hash(vizinho), vizinho))
                     open_set_map.add(vizinho)

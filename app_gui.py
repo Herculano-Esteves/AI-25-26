@@ -4,7 +4,8 @@ import random
 
 from main import criar_mapa_gerado
 from search import procurar_rota_a_star
-from models import Motorizacao
+from models import Motorizacao, EstadoVeiculo
+
 
 class MapApplication:
     # Constantes de Configuração
@@ -26,6 +27,8 @@ class MapApplication:
     COR_GAS = "orange"
     COR_EV = "limegreen"
     COR_PEDIDO = "deep sky blue"
+    COR_PEDIDO_ACEITE = "yellow"
+    COR_PEDIDO_DESTINO = "magenta"
     COR_VEICULO_EV = "green"
     COR_VEICULO_GAS = "red"
     COR_DEBUG_TEXT = "yellow"
@@ -47,6 +50,8 @@ class MapApplication:
         self.mapa = None
         self.veiculos = []
         self.pedidos = []
+        self.pedidos_a_ir_buscar = []
+        self.pedidos_destinos = []
         self.simulacao_a_correr = False
 
         # Variáveis de Controlo da "Câmara" (View)
@@ -189,65 +194,104 @@ class MapApplication:
         tempo_a_avancar = self.SIM_TEMPO_POR_TICK
 
         for v in self.veiculos:
-            # Verifica se o veículo está em movimento
+            # Em percurso
             if v.nodo_destino:
                 v.tempo_viagem_passado += tempo_a_avancar
 
                 if v.tempo_viagem_passado >= v.tempo_viagem_total:
-                    # Em destino
+                    # Chegou ao destino
                     v.nodo_atual = v.nodo_destino
                     v.nodo_origem = None
                     v.nodo_destino = None
                     v.tempo_viagem_passado = 0
                     v.localizacao_atual_coords = v.nodo_atual.position
-                else:
-                    # Em trânsito
-                    # Calcula o progresso (0.0 a 1.0)
-                    progresso = v.tempo_viagem_passado / v.tempo_viagem_total
 
-                    # Interpolação Linear (Lerp)
+                else:
+                    # Em percurso
+                    progresso = v.tempo_viagem_passado / v.tempo_viagem_total
                     x1, y1 = v.nodo_origem.position
                     x2, y2 = v.nodo_destino.position
-
                     novo_x = x1 + (x2 - x1) * progresso
                     novo_y = y1 + (y2 - y1) * progresso
-
                     v.localizacao_atual_coords = (novo_x, novo_y)
+                    continue
+            if v.rota_atribuida:
+                # Com rota atribuida
+                if v.rota_atribuida[0] != v.nodo_atual:
+                    # Confirma se inicio está correto
+                    v.rota_atribuida = []
 
-            else:
-                # O veiculo está parado
-                if v.rota_atribuida and len(v.rota_atribuida) >= 2:
-                    proximo_no = v.rota_atribuida[1]  # O próximo nó no caminho
+                elif len(v.rota_atribuida) >= 2:
+                    proximo_no = v.rota_atribuida[1]
                     v.nodo_origem = v.nodo_atual
                     v.nodo_destino = proximo_no
-                    v.rota_atribuida = v.rota_atribuida[1:]  # Remove o primeiro nó
+                    v.rota_atribuida = v.rota_atribuida[1:]
 
-                    # Obtém o tempo da aresta
-                    aresta_info = self.mapa.obter_peso_aresta(v.nodo_origem, v.nodo_destino)
+                    aresta_info = self.mapa.obter_peso_aresta(
+                        v.nodo_origem, v.nodo_destino
+                    )
                     if aresta_info:
                         distancia, tempo = aresta_info
                         v.tempo_viagem_total = tempo
                         v.tempo_viagem_passado = 0.0
+                    continue
+
                 else:
-                    # Encontra um novo destino aleatório
-                    caminho = procurar_rota_a_star(self.mapa, v.nodo_atual, random.choice(self.pedidos).origem)
-                    v.rota_atribuida = caminho if caminho else []
-                    if v.rota_atribuida and len(v.rota_atribuida) >= 2:
-                        proximo_no = v.rota_atribuida[1]  # O próximo nó no caminho
-                        v.nodo_origem = v.nodo_atual
-                        v.nodo_destino = proximo_no
-                        v.rota_atribuida = v.rota_atribuida[1:]  # Remove o primeiro nó
+                    # A rota só tinha o nó atual, limpá-la
+                    v.rota_atribuida = []
 
+            # Se cehgou até aqui é porque está parado
+            if v.estado == EstadoVeiculo.DISPONIVEL:
+                # Disponivel
+                if not self.pedidos:
+                    continue
 
-                        # Obtém o tempo da aresta
-                        aresta_info = self.mapa.obter_peso_aresta(v.nodo_origem, v.nodo_destino)
-                        if aresta_info:
-                            distancia, tempo = aresta_info
-                            v.tempo_viagem_total = tempo
-                            v.tempo_viagem_passado = 0.0
+                # Pega no primeiro da lista
+                pedido_escolhido = self.pedidos.pop(0)
+                self.pedidos_a_ir_buscar.append(pedido_escolhido)
+
+                v.pedido_atual = pedido_escolhido
+                v.estado = EstadoVeiculo.A_CAMINHO_CLIENTE
+                print(
+                    f"{v.id_veiculo} aceitou {pedido_escolhido.id_pedido}. A caminho de {pedido_escolhido.origem.position}"
+                )
+
+                # Calcula a rota para o cliente
+                caminho = procurar_rota_a_star(
+                    self.mapa, v.nodo_atual, pedido_escolhido.origem
+                )
+                v.rota_atribuida = caminho if caminho else []
+
+            elif v.estado == EstadoVeiculo.A_CAMINHO_CLIENTE:
+                # A caminho
+                print(
+                    f"{v.id_veiculo} em {v.nodo_atual.position}. A iniciar viagem para {v.pedido_atual.destino.position}"
+                )
+
+                self.pedidos_a_ir_buscar.remove(v.pedido_atual)
+                self.pedidos_destinos.append(v.pedido_atual)
+
+                v.estado = EstadoVeiculo.EM_VIAGEM_CLIENTE
+
+                # Calcula a rota para o destino
+                caminho = procurar_rota_a_star(
+                    self.mapa, v.nodo_atual, v.pedido_atual.destino
+                )
+                v.rota_atribuida = caminho if caminho else []
+
+            elif v.estado == EstadoVeiculo.EM_VIAGEM_CLIENTE:
+                # Acabou de largar o cliente
+                print(
+                    f"{v.id_veiculo} completou a viagem em {v.nodo_atual.position}. Disponível."
+                )
+
+                self.pedidos_destinos.remove(v.pedido_atual)
+
+                v.estado = EstadoVeiculo.DISPONIVEL
+                v.pedido_atual = None
+                v.rota_atribuida = []
 
         self.atualizar_visuais_dinamicos()
-
         self.root.after(self.TICK_RATE_MS, self.passo_simulacao)
 
     def atualizar_visuais_dinamicos(self):
@@ -256,7 +300,7 @@ class MapApplication:
             tag_veiculo = f"veiculo_{v.id_veiculo}"
             novo_x, novo_y = self._transformar_coords(*v.localizacao_atual_coords)
             self.canvas.coords(tag_veiculo, *self._get_pontos_veiculo(novo_x, novo_y))
-        # self._desenhar_pedidos()
+        self._desenhar_pedidos()
 
     # 3. Handlers de Eventos
 
@@ -413,8 +457,28 @@ class MapApplication:
             self.canvas.create_text(
                 x,
                 y,
-                text="★",
+                text="★", # Ícone de Estrela
                 fill=self.COR_PEDIDO,
+                font=self.PEDIDO_FONTE,
+                tags=("pedido", f"pedido_{p.id_pedido}"),
+            )
+        for p in self.pedidos_a_ir_buscar:
+            x, y = self._transformar_coords(*p.origem.position)
+            self.canvas.create_text(
+                x,
+                y,
+                text="★", # Ícone de Estrela
+                fill=self.COR_PEDIDO_ACEITE,
+                font=self.PEDIDO_FONTE,
+                tags=("pedido", f"pedido_{p.id_pedido}"),
+            )
+        for p in self.pedidos_destinos:
+            x, y = self._transformar_coords(*p.destino.position)
+            self.canvas.create_text(
+                x,
+                y,
+                text="⚑", # Ícone de Bandeira
+                fill=self.COR_PEDIDO_DESTINO,
                 font=self.PEDIDO_FONTE,
                 tags=("pedido", f"pedido_{p.id_pedido}"),
             )
