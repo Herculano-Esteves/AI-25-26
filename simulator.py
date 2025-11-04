@@ -2,6 +2,7 @@ from mapGen import criar_mapa_gerado, criar_pedido_aleatorio
 from search import procurar_rota_a_star
 from models import EstadoVeiculo
 
+
 class Simulador:
     # Simulation Constants
     LARGURA_MAPA = 20
@@ -15,7 +16,7 @@ class Simulador:
         self.pedidos = []
         self.pedidos_a_ir_buscar = []
         self.pedidos_destinos = []
-        
+
         # Setup
         self.configurar_novo_mapa()
 
@@ -26,7 +27,6 @@ class Simulador:
         )
         self.pedidos_a_ir_buscar = []
         self.pedidos_destinos = []
-
 
     def passo_simulacao(self):
         tempo_a_avancar = self.SIM_TEMPO_POR_TICK
@@ -52,12 +52,12 @@ class Simulador:
                     novo_x = x1 + (x2 - x1) * progresso
                     novo_y = y1 + (y2 - y1) * progresso
                     v.localizacao_atual_coords = (novo_x, novo_y)
-                    continue # Skips to next vehicle
-            
+                    continue  # Skips to next vehicle
+
             # With route assigned but stopped
             if v.rota_atribuida:
                 if v.rota_atribuida[0] != v.nodo_atual:
-                    v.rota_atribuida = [] # Invalid route
+                    v.rota_atribuida = []  # Invalid route
 
                 elif len(v.rota_atribuida) >= 2:
                     # Will start moving to next node
@@ -73,17 +73,17 @@ class Simulador:
                         distancia, tempo = aresta_info
                         v.tempo_viagem_total = tempo
                         v.tempo_viagem_passado = 0.0
-                    continue # Skips to next vehicle
+                    continue  # Skips to next vehicle
 
                 else:
-                    v.rota_atribuida = [] # Reached destination of route
+                    v.rota_atribuida = []  # Reached destination of route
 
             # If here there is no movement or route
             if v.estado == EstadoVeiculo.DISPONIVEL:
                 if not self.pedidos:
                     for _ in range(4):
-                      self.pedidos.append(criar_pedido_aleatorio(list(self.mapa.nos)))
-                    continue # No requests available
+                        self.pedidos.append(criar_pedido_aleatorio(list(self.mapa.nos)))
+                    continue  # No requests available
 
                 # First request in the list
                 pedido_escolhido = self.pedidos.pop(0)
@@ -110,7 +110,7 @@ class Simulador:
                 self.pedidos_destinos.append(v.pedido_atual)
 
                 v.estado = EstadoVeiculo.EM_VIAGEM_CLIENTE
-                
+
                 caminho = procurar_rota_a_star(
                     self.mapa, v.nodo_atual, v.pedido_atual.destino
                 )

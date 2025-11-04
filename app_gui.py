@@ -4,6 +4,9 @@ from tkinter import ttk
 from models import Motorizacao
 from simulator import Simulador
 
+import os
+from PIL import Image, ImageTk
+
 
 class MapApplication:
     # GUI constants
@@ -29,9 +32,7 @@ class MapApplication:
 
     # Drawing constants
     NO_RAIO = 4
-    POSTO_LADO = 6
-    EV_RAIO = 7
-    VEICULO_SHAPE = [0, -8, -6, 5, 6, 5]
+    SPRITE_SIZE_PX = 24
     PEDIDO_FONTE = ("Arial", 20)
 
     def __init__(self, root):
@@ -39,8 +40,20 @@ class MapApplication:
         self.root.title("Simulador de Frota")
         self.root.geometry("1000x1000")
 
+        # Saves images references
+        self.sprite_cache = {}
+        try:
+            self._carregar_sprites()
+        except Exception as e:
+            print(f"Erro fatal ao carregar imagens: {e}")
+            print(
+                "Verifique se a pasta 'images' existe e contém todos os PNGs necessários."
+            )
+            root.destroy()
+            return
+
         self.simulador = Simulador()
-        
+
         self.simulacao_a_correr = False
 
         # Camera variables
@@ -121,8 +134,12 @@ class MapApplication:
         util_w = canvas_w - (2 * self.PADDING_RESET)
         util_h = canvas_h - (2 * self.PADDING_RESET)
 
-        map_w_mundo = self.simulador.LARGURA_MAPA - 1 if self.simulador.LARGURA_MAPA > 1 else 1
-        map_h_mundo = self.simulador.ALTURA_MAPA - 1 if self.simulador.ALTURA_MAPA > 1 else 1
+        map_w_mundo = (
+            self.simulador.LARGURA_MAPA - 1 if self.simulador.LARGURA_MAPA > 1 else 1
+        )
+        map_h_mundo = (
+            self.simulador.ALTURA_MAPA - 1 if self.simulador.ALTURA_MAPA > 1 else 1
+        )
 
         escala_x = util_w / map_w_mundo
         escala_y = util_h / map_h_mundo
@@ -146,7 +163,7 @@ class MapApplication:
         self.btn_parar_sim.config(state=tk.NORMAL)
         self.btn_gerar_mapa.config(state=tk.DISABLED)
         self.btn_reset_view.config(state=tk.DISABLED)
-        
+
         self._loop_gui_simulacao()
 
     def parar_simulacao(self):
@@ -163,16 +180,15 @@ class MapApplication:
         if not self.simulacao_a_correr:
             return
 
-        self.simulador.passo_simulacao() # 1 simulation frame
-        self.atualizar_visuais_dinamicos() # Visual update
-        self.root.after(self.TICK_RATE_MS, self._loop_gui_simulacao) # Next frame
+        self.simulador.passo_simulacao()  # 1 simulation frame
+        self.atualizar_visuais_dinamicos()  # Visual update
+        self.root.after(self.TICK_RATE_MS, self._loop_gui_simulacao)  # Next frame
 
     def atualizar_visuais_dinamicos(self):
         for v in self.simulador.veiculos:
             tag_veiculo = f"veiculo_{v.id_veiculo}"
             novo_x, novo_y = self._transformar_coords(*v.localizacao_atual_coords)
-            self.canvas.coords(tag_veiculo, *self._get_pontos_veiculo(novo_x, novo_y))
-
+            self.canvas.coords(tag_veiculo, novo_x, novo_y)
         self._desenhar_pedidos()
 
     # Input Handlers
@@ -212,7 +228,7 @@ class MapApplication:
         self.redesenhar_canvas_completo()
 
     def _on_drag_end(self, event):
-        self.canvas.config(cursor="crosshair") # Restore cursor
+        self.canvas.config(cursor="crosshair")  # Restore cursor
 
     # Coordinate Transformations
     def _transformar_coords(self, x_mundo, y_mundo):
@@ -264,26 +280,28 @@ class MapApplication:
                 )
 
     def _desenhar_nos(self):
+        sprite_gas = self.sprite_cache["gas"]
+        sprite_ev = self.sprite_cache["ev"]
         r_no = self.NO_RAIO
-        r_posto = self.POSTO_LADO
-        r_ev = self.EV_RAIO
 
         for no in self.simulador.mapa.nos:
             x, y = self._transformar_coords(*no.position)
+
             if no.gas_pumps > 0:
-                self.canvas.create_rectangle(
-                    x - r_posto, y - r_posto, x + r_posto, y + r_posto,
-                    fill=self.COR_GAS, outline="white", tags=("no", "posto_gas"),
+                self.canvas.create_image(
+                    x, y, image=sprite_gas, tags=("no", "posto_gas")
                 )
             elif no.energy_chargers > 0:
-                self.canvas.create_polygon(
-                    x, y - r_ev, x + r_ev, y, x, y + r_ev, x - r_ev, y,
-                    fill=self.COR_EV, outline="white", tags=("no", "posto_ev"),
-                )
+                self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
             else:
                 self.canvas.create_oval(
-                    x - r_no, y - r_no, x + r_no, y + r_no,
-                    fill=self.COR_NO, outline=self.COR_ARESTA, tags=("no", "no_normal"),
+                    x - r_no,
+                    y - r_no,
+                    x + r_no,
+                    y + r_no,
+                    fill=self.COR_NO,
+                    outline=self.COR_ARESTA,
+                    tags=("no", "no_normal"),
                 )
 
     def _desenhar_pedidos(self):
@@ -291,36 +309,86 @@ class MapApplication:
         for p in self.simulador.pedidos:
             x, y = self._transformar_coords(*p.origem.position)
             self.canvas.create_text(
-                x, y, text="★", fill=self.COR_PEDIDO,
-                font=self.PEDIDO_FONTE, tags=("pedido", f"pedido_{p.id_pedido}"),
+                x,
+                y,
+                text="★",
+                fill=self.COR_PEDIDO,
+                font=self.PEDIDO_FONTE,
+                tags=("pedido", f"pedido_{p.id_pedido}"),
             )
         for p in self.simulador.pedidos_a_ir_buscar:
             x, y = self._transformar_coords(*p.origem.position)
             self.canvas.create_text(
-                x, y, text="★", fill=self.COR_PEDIDO_ACEITE,
-                font=self.PEDIDO_FONTE, tags=("pedido", f"pedido_{p.id_pedido}"),
+                x,
+                y,
+                text="★",
+                fill=self.COR_PEDIDO_ACEITE,
+                font=self.PEDIDO_FONTE,
+                tags=("pedido", f"pedido_{p.id_pedido}"),
             )
         for p in self.simulador.pedidos_destinos:
             x, y = self._transformar_coords(*p.destino.position)
             self.canvas.create_text(
-                x, y, text="⚑", fill=self.COR_PEDIDO_DESTINO,
-                font=self.PEDIDO_FONTE, tags=("pedido", f"pedido_{p.id_pedido}"),
+                x,
+                y,
+                text="⚑",
+                fill=self.COR_PEDIDO_DESTINO,
+                font=self.PEDIDO_FONTE,
+                tags=("pedido", f"pedido_{p.id_pedido}"),
             )
 
     def _desenhar_veiculos(self):
         self.canvas.delete("veiculo")
+
+        sprite_ev = self.sprite_cache["carro_ev"]
+        sprite_gas = self.sprite_cache["carro_gas"]
+
         for v in self.simulador.veiculos:
             x, y = self._transformar_coords(*v.localizacao_atual_coords)
-            cor = (
-                self.COR_VEICULO_EV
-                if v.motorizacao == Motorizacao.ELETRICO
-                else self.COR_VEICULO_GAS
+
+            sprite_a_usar = (
+                sprite_ev if v.motorizacao == Motorizacao.ELETRICO else sprite_gas
             )
-            self.canvas.create_polygon(
-                *self._get_pontos_veiculo(x, y),
-                fill=cor, outline="black", width=1,
+
+            self.canvas.create_image(
+                x,
+                y,
+                image=sprite_a_usar,
                 tags=("veiculo", f"veiculo_{v.id_veiculo}"),
             )
+
+    def _carregar_sprites(self):
+        print("A carregar sprites...")
+        base_path = os.path.dirname(os.path.abspath(__file__))
+        image_path = os.path.join(base_path, "images")
+
+        ficheiros_sprite = {
+            "no": "no.png",
+            "gas": "gas.png",
+            "ev": "ev.png",
+            "carro_gas": "carro_gas.png",
+            "carro_ev": "carro_ev.png",
+        }
+
+        novo_tamanho = (self.SPRITE_SIZE_PX, self.SPRITE_SIZE_PX)
+
+        for nome, ficheiro in ficheiros_sprite.items():
+            try:
+                caminho_img = os.path.join(image_path, ficheiro)
+
+                img = Image.open(caminho_img)
+                img = img.resize(novo_tamanho, Image.Resampling.LANCZOS)
+
+                self.sprite_cache[nome] = ImageTk.PhotoImage(img)
+
+            except FileNotFoundError:
+                raise FileNotFoundError(
+                    f"Não foi possível encontrar a imagem: {ficheiro} em {image_path}"
+                )
+            except Exception as e:
+                raise IOError(f"Erro ao processar a imagem {ficheiro}: {e}")
+
+        print(f"Sprites carregados com sucesso: {list(self.sprite_cache.keys())}")
 
 
 if __name__ == "__main__":

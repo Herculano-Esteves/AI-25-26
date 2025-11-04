@@ -5,6 +5,7 @@ from nodo import Node
 from models import Veiculo, Pedido, Motorizacao
 from typing import Tuple, List
 
+
 def criar_mapa_gerado(
     largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1
 ) -> Tuple[GrafoCidade, List[Veiculo], List[Pedido]]:
@@ -85,6 +86,7 @@ def criar_mapa_gerado(
     )
     return mapa, veiculos, pedidos
 
+
 def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
     if tipo_ponto == Motorizacao.ELETRICO:
         if any(n.energy_chargers > 0 for n in todos_os_nos):
@@ -99,6 +101,7 @@ def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
         # Converte um nó aleatório
         no_a_converter = random.choice(todos_os_nos)
         no_a_converter.gas_pumps = random.randint(2, 4)
+
 
 def criar_pedido_aleatorio(nos: List[Node]) -> Pedido:
     origem = random.choice(nos)
