@@ -3,8 +3,8 @@ from tkinter import ttk
 import random
 
 from main import criar_mapa_gerado
+from search import procurar_rota_a_star
 from models import Motorizacao
-
 
 class MapApplication:
     # Constantes de Configuração
@@ -215,30 +215,36 @@ class MapApplication:
                     v.localizacao_atual_coords = (novo_x, novo_y)
 
             else:
-                # O VEÍCULO ESTÁ PARADO
-                # Encontra um novo destino aleatório
+                # O veiculo está parado
+                if v.rota_atribuida and len(v.rota_atribuida) >= 2:
+                    proximo_no = v.rota_atribuida[1]  # O próximo nó no caminho
+                    v.nodo_origem = v.nodo_atual
+                    v.nodo_destino = proximo_no
+                    v.rota_atribuida = v.rota_atribuida[1:]  # Remove o primeiro nó
 
-                if not self.mapa or not self.mapa.obter_vizinhos(v.nodo_atual):
-                    continue
-
-                vizinhos = self.mapa.obter_vizinhos(v.nodo_atual)
-                if vizinhos:
-                    novo_destino = random.choice(vizinhos)
-
-                    # (dist, tempo)
-                    aresta_info = self.mapa.obter_peso_aresta(
-                        v.nodo_atual, novo_destino
-                    )
-
-                    # Verifica se a aresta existe
+                    # Obtém o tempo da aresta
+                    aresta_info = self.mapa.obter_peso_aresta(v.nodo_origem, v.nodo_destino)
                     if aresta_info:
-                        _, tempo_viagem = aresta_info
-
-                        v.nodo_origem = v.nodo_atual
-                        v.nodo_destino = novo_destino
-                        v.tempo_viagem_total = tempo_viagem
+                        distancia, tempo = aresta_info
+                        v.tempo_viagem_total = tempo
                         v.tempo_viagem_passado = 0.0
-                        v.localizacao_atual_coords = v.nodo_origem.position
+                else:
+                    # Encontra um novo destino aleatório
+                    caminho = procurar_rota_a_star(self.mapa, v.nodo_atual, random.choice(self.pedidos).origem)
+                    v.rota_atribuida = caminho if caminho else []
+                    if v.rota_atribuida and len(v.rota_atribuida) >= 2:
+                        proximo_no = v.rota_atribuida[1]  # O próximo nó no caminho
+                        v.nodo_origem = v.nodo_atual
+                        v.nodo_destino = proximo_no
+                        v.rota_atribuida = v.rota_atribuida[1:]  # Remove o primeiro nó
+
+
+                        # Obtém o tempo da aresta
+                        aresta_info = self.mapa.obter_peso_aresta(v.nodo_origem, v.nodo_destino)
+                        if aresta_info:
+                            distancia, tempo = aresta_info
+                            v.tempo_viagem_total = tempo
+                            v.tempo_viagem_passado = 0.0
 
         self.atualizar_visuais_dinamicos()
 
