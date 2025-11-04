@@ -70,6 +70,7 @@ class Veiculo:
         self.autonomia_maxima_km = autonomia_maxima_km
         self.autonomia_atual_km = autonomia_atual_km
         self.estado = estado
+        self.distancia_viagem_total: float = 0.0
 
         if self.autonomia_atual_km > self.autonomia_maxima_km:
             self.autonomia_atual_km = self.autonomia_maxima_km
