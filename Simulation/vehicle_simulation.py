@@ -36,11 +36,13 @@ def update_vehicle_movement(v: Vehicle, time_to_advance: float):
     else:
         # Vehicle is mid-trip. Interpolate position for the GUI.
         progress = v.time_passed_on_trip / v.extimated_trip_time
-        x1, y1 = v.start_node.position
-        x2, y2 = v.end_node.position
-        new_x = x1 + (x2 - x1) * progress
-        new_y = y1 + (y2 - y1) * progress
-        v.map_coordinates = (new_x, new_y)
+        if v.start_node:
+            x1, y1 = v.start_node.position
+            if v.end_node:
+                x2, y2 = v.end_node.position
+                new_x = x1 + (x2 - x1) * progress
+                new_y = y1 + (y2 - y1) * progress
+                v.map_coordinates = (new_x, new_y)
 
 
 def manage_stopped_vehicle(simulator: "Simulator", v: Vehicle):
@@ -84,19 +86,22 @@ def manage_stopped_vehicle(simulator: "Simulator", v: Vehicle):
 
 
 def manage_state_on_way_to_client(simulator: "Simulator", v: Vehicle):
-    print(
-        f"{v.id} em {v.position_node.position}. A iniciar viagem para {v.request.end_node.position}"
-    )
+    if v.request:
+        print(
+            f"{v.id} em {v.position_node.position}. A iniciar viagem para {v.request.end_node.position}"
+        )
 
-    simulator.requests_to_pickup.remove(v.request)
-    simulator.requests_to_dropoff.append(v.request)
-    v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
+        simulator.requests_to_pickup.remove(v.request)
+        simulator.requests_to_dropoff.append(v.request)
+        v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
 
-    # Calculate the route to the final end_node
-    path, time, distance = find_a_star_route(
-        simulator.map, v.position_node, v.request.end_node
-    )
-    v.route_to_do = path if path else []
+        # Calculate the route to the final end_node
+        object = find_a_star_route(
+            simulator.map, v.position_node, v.request.end_node
+        )
+        if object:
+            path, time, distance = object
+            v.route_to_do = path if path else []
 
 
 def manage_state_on_trip(simulator: "Simulator", v: Vehicle):
@@ -104,7 +109,8 @@ def manage_state_on_trip(simulator: "Simulator", v: Vehicle):
         f"{v.id} completou a viagem em {v.position_node.position}. Disponível."
         f"Autonomia restante: {v.remaining_km:.1f} km"
     )
-    simulator.requests_to_dropoff.remove(v.request)
-    v.condition = VehicleCondition.AVAILABLE
-    v.request = None
-    v.route_to_do = []
+    if v.request:
+        simulator.requests_to_dropoff.remove(v.request)
+        v.condition = VehicleCondition.AVAILABLE
+        v.request = None
+        v.route_to_do = []

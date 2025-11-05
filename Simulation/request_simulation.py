@@ -127,15 +127,17 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
     )
 
     # We must re-calculate the path here, since we only stored the *time*
-    path, time, distance = find_a_star_route(
+    object = find_a_star_route(
         simulator.map, v.position_node, request.start_node
     )
+
+    path = None
+    if object:
+        path, time, distance = object
 
     if path:
         v.route_to_do = path
     else:
-        # This should not happen, as it would have been 'inf'
-        # But as a fallback, we reset the vehicle
         print(f"[ERROR] No path found for {v.id} to {request.id}. Resetting vehicle.")
         v.request = None
         v.condition = VehicleCondition.AVAILABLE

@@ -8,7 +8,7 @@ class Node:
         position: Tuple[int, int],
         gas_pumps: int = 0,
         energy_chargers: int = 0,
-        energy_recharge_rate_km_h: int = 0.0,
+        energy_recharge_rate_km_h: int = 0,
     ) -> None:
         self.position = position
         self.gas_pumps = gas_pumps
