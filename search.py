@@ -1,6 +1,6 @@
 import heapq
 import math
-from typing import List, Optional, Dict, Set
+from typing import List, Optional, Dict, Set, Tuple
 
 from models import Node
 from graph import CityGraph
@@ -28,7 +28,8 @@ def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:
 
 def find_a_star_route(
     map: CityGraph, start_node: Node, end_node: Node
-) -> Optional[List[Node]]:
+) -> Optional[Tuple[List[Node], float, float]]:
+    # returns (path, total_time, total_distance)
     closed_set: Set[Node] = set()
     open_set = []
     heapq.heappush(open_set, (0, hash(start_node), start_node))
@@ -37,13 +38,17 @@ def find_a_star_route(
     # came_from: Dictionary to reconstruct the path.
     came_from: Dict[Node, Node] = {}
 
-    # Initialize all costs to infinity.
+    # g_score: Cost (time) from start to 'n'
     g_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
     g_score[start_node] = 0.0
 
+    # d_score: Distance (km) from start to 'n' (following the fastest path)
+    d_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
+    d_score[start_node] = 0.0
+
     # f_score: Estimated total cost (g + h) from start to end, passing through 'n'.
     f_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
-    f_score[start_node] = _heuristic_distance(start_node, end_node)  # f for start = h
+    f_score[start_node] = _heuristic_distance(start_node, end_node)
 
     while open_set:
 
@@ -53,7 +58,10 @@ def find_a_star_route(
 
         # End
         if current == end_node:
-            return _reconstruct_path(came_from, current)
+            path = _reconstruct_path(came_from, current)
+            total_time = g_score[current]
+            total_distance = d_score[current]
+            return path, total_time, total_distance
 
         closed_set.add(current)
 
@@ -71,13 +79,16 @@ def find_a_star_route(
             # A* optimizes by *time* (index 1)
             edge_distance, edge_time = edge_info
 
-            # Calculate the 'g' cost
+            # Calculate the 'g' cost (time)
             tentative_g_score = g_score[current] + edge_time
 
-            # Check if this is a better path
+            # Check if this is a better path (in terms of time)
             if tentative_g_score < g_score[neighbor]:
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g_score
+                # Also update the distance for this new fastest path
+                d_score[neighbor] = d_score[current] + edge_distance
+
                 f_score[neighbor] = tentative_g_score + _heuristic_distance(
                     neighbor, end_node
                 )

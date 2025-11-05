@@ -75,14 +75,14 @@ def create_vehicle_fleet(
     for i in range(num_ev):
         loc = random.choice(all_nodes)
         veiculos.append(
-            _create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 350, 650)
+            _create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 50, 650)
         )
 
     # Generates combustion vehicles
     for i in range(num_gas):
         loc = random.choice(all_nodes)
         veiculos.append(
-            _create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 600, 900)
+            _create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 50, 900)
         )
 
     print(f"Frota gerada: {len(veiculos)} veículos criados.")

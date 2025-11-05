@@ -2,7 +2,7 @@ import tkinter as tk
 from tkinter import ttk
 
 from models import Motor
-from simulator import Simulator
+from Simulation.simulator import Simulator
 
 import os
 from PIL import Image, ImageTk
