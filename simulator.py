@@ -1,182 +1,215 @@
-import math
-from mapGen import criar_mapa_gerado, criar_pedido_aleatorio
-from search import procurar_rota_a_star
-from models import EstadoVeiculo, Veiculo, Pedido, Node
+from mapGen import (
+    generate_map,
+    generate_random_request,
+    create_vehicle_fleet,
+    generate_requests,
+)
+from search import find_a_star_route, _heuristic_distance
+from models import VehicleCondition, Vehicle, Request, Node
 from typing import List
 
 
-def _peso_de_distancia(a: Node, b: Node) -> float:
-    (x1, y1) = a.position
-    (x2, y2) = b.position
-    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
-
-
-class Simulador:
+class Simulator:
     # Simulation Constants
-    LARGURA_MAPA = 20
-    ALTURA_MAPA = 20
-    SIM_TEMPO_POR_TICK = 0.1  # Time in minutes per frame
-    # Lowest autonomy threshold
-    LIMITE_AUTONOMIA_BAIXA = 50.0
+    MAP_WIDTH = 20
+    MAP_HEIGHT = 20
+    SIM_TIME_PER_TICK = 0.1  # Time in minutes per frame
+    LOW_AUTONOMY_THRESHOLD = 50.0
+    NUM_EV_VEHICLES = 3
+    NUM_GAS_VEHICLES = 3
+    NUM_INITIAL_REQUESTS = 5
+    NUM_REQUESTS_TO_GENERATE = 4
 
     def __init__(self):
         # Variables
-        self.mapa = None
-        self.veiculos: List[Veiculo] = []
-        self.pedidos: List[Pedido] = []
-        self.pedidos_a_ir_buscar: List[Pedido] = []
-        self.pedidos_destinos: List[Pedido] = []
+        self.map = None
+        self.vehicles: List[Vehicle] = []
+        self.requests: List[Request] = []
+        self.requests_to_pickup: List[Request] = []
+        self.requests_to_dropoff: List[Request] = []
 
         # Setup
-        self.configurar_novo_mapa()
+        self.setup_new_map()
 
-    def configurar_novo_mapa(self):
-        print("A criar novo mapa...")
-        self.mapa, self.veiculos, self.pedidos = criar_mapa_gerado(
-            self.LARGURA_MAPA, self.ALTURA_MAPA, 0.02, 0.005
+    def setup_new_map(self):
+        print("A criar novo map...")
+        # 1. Generate the map graph
+        self.map = generate_map(self.MAP_WIDTH, self.MAP_HEIGHT, 0.02, 0.005)
+
+        all_nodes = list(self.map.nos)
+
+        # 2. Generate the vehicle fleet
+        self.vehicles = create_vehicle_fleet(
+            all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES
         )
-        self.pedidos_a_ir_buscar = []
-        self.pedidos_destinos = []
 
-    def passo_simulacao(self):
-        tempo_a_avancar = self.SIM_TEMPO_POR_TICK
-        for v in self.veiculos:
-            self._gerir_veiculo(v, tempo_a_avancar)
-        self._atribuir_pedidos_pendentes()
-        self._gerar_novos_pedidos_se_necessario()
+        # 3. Generate the initial requests
+        self.requests = generate_requests(all_nodes, self.NUM_INITIAL_REQUESTS)
 
-    def _gerir_veiculo(self, v: Veiculo, tempo_a_avancar: float):
-        self._atualizar_movimento_veiculo(v, tempo_a_avancar)
+        self.requests_to_pickup = []
+        self.requests_to_dropoff = []
 
-        if not v.nodo_destino:
-            self._gerir_veiculo_parado(v)
+    def simulation_step(self):
+        time_to_advance = self.SIM_TIME_PER_TICK
 
-    def _atualizar_movimento_veiculo(self, v: Veiculo, tempo_a_avancar: float):
-        if not v.nodo_destino:
+        # 1. Manage movement and state for each vehicle
+        for v in self.vehicles:
+            self._manage_vehicle(v, time_to_advance)
+
+        # 2. Assign pending requests to available vehicles
+        self._assign_pending_requests()
+
+        # 3. Generate new requests if the queue is empty
+        self._generate_new_requests_if_needed()
+
+    def _manage_vehicle(self, v: Vehicle, time_to_advance: float):
+        self._update_vehicle_movement(v, time_to_advance)
+
+        # If the vehicle is not moving, manage its state.
+        if not v.end_node:
+            self._manage_stopped_vehicle(v)
+
+    def _assign_pending_requests(self):
+        if not self.requests:
             return
 
-        v.tempo_viagem_passado += tempo_a_avancar
-
-        if v.tempo_viagem_passado >= v.tempo_viagem_total:
-            v.autonomia_atual_km -= v.distancia_viagem_total
-
-            v.nodo_atual = v.nodo_destino
-            v.localizacao_atual_coords = v.nodo_atual.position
-
-            v.nodo_origem = None
-            v.nodo_destino = None
-            v.tempo_viagem_passado = 0
-            v.tempo_viagem_total = 0
-            v.distancia_viagem_total = 0.0
-
-        else:
-            progresso = v.tempo_viagem_passado / v.tempo_viagem_total
-            x1, y1 = v.nodo_origem.position
-            x2, y2 = v.nodo_destino.position
-            novo_x = x1 + (x2 - x1) * progresso
-            novo_y = y1 + (y2 - y1) * progresso
-            v.localizacao_atual_coords = (novo_x, novo_y)
-
-    def _gerir_veiculo_parado(self, v: Veiculo):
-        if v.rota_atribuida:
-            if v.rota_atribuida[0] != v.nodo_atual:
-                v.rota_atribuida = []
-
-            elif len(v.rota_atribuida) >= 2:
-                proximo_no = v.rota_atribuida[1]
-                v.nodo_origem = v.nodo_atual
-                v.nodo_destino = proximo_no
-                v.rota_atribuida = v.rota_atribuida[1:]
-
-                aresta_info = self.mapa.obter_peso_aresta(v.nodo_origem, v.nodo_destino)
-                if aresta_info:
-                    distancia, tempo = aresta_info
-                    v.distancia_viagem_total = distancia
-                    v.tempo_viagem_total = tempo
-                    v.tempo_viagem_passado = 0.0
-                return
-
-            else:
-                v.rota_atribuida = []
-
-        if v.estado == EstadoVeiculo.A_CAMINHO_CLIENTE:
-            self._gerir_estado_a_caminho(v)
-
-        elif v.estado == EstadoVeiculo.EM_VIAGEM_CLIENTE:
-            self._gerir_estado_em_viagem(v)
-
-        elif v.estado == EstadoVeiculo.DISPONIVEL:
-            # Verificar se precisa de reabastecer
-            pass
-
-    def _gerir_estado_a_caminho(self, v: Veiculo):
-        print(
-            f"{v.id_veiculo} em {v.nodo_atual.position}. A iniciar viagem para {v.pedido_atual.destino.position}"
-        )
-
-        self.pedidos_a_ir_buscar.remove(v.pedido_atual)
-        self.pedidos_destinos.append(v.pedido_atual)
-        v.estado = EstadoVeiculo.EM_VIAGEM_CLIENTE
-
-        caminho = procurar_rota_a_star(self.mapa, v.nodo_atual, v.pedido_atual.destino)
-        v.rota_atribuida = caminho if caminho else []
-
-    def _gerir_estado_em_viagem(self, v: Veiculo):
-        print(
-            f"{v.id_veiculo} completou a viagem em {v.nodo_atual.position}. Disponível."
-            f"Autonomia restante: {v.autonomia_atual_km:.1f} km"
-        )
-        self.pedidos_destinos.remove(v.pedido_atual)
-        v.estado = EstadoVeiculo.DISPONIVEL
-        v.pedido_atual = None
-        v.rota_atribuida = []
-
-    def _atribuir_pedidos_pendentes(self):
-        if not self.pedidos:
-            return
-
-        veiculos_disponiveis = [
-            v for v in self.veiculos if v.estado == EstadoVeiculo.DISPONIVEL
+        available_vehicles = [
+            v for v in self.vehicles if v.condition == VehicleCondition.AVAILABLE
         ]
 
-        if not veiculos_disponiveis:
+        if not available_vehicles:
             return
 
-        # Goes through a copy of the list to allow removal
-        for pedido in self.pedidos[:]:
+        # Iterate over a copy of the list to allow removal
+        for request in self.requests[:]:
+            if not available_vehicles:
+                break
 
             best_vehicle = None
             lowest_weight = float("inf")
 
-            for v in veiculos_disponiveis:
-                weight = _peso_de_distancia(v.nodo_atual, pedido.origem)
+            # Find the closest vehicle (by straight-line distance)
+            for v in available_vehicles:
+                # Use the imported heuristic
+                weight = _heuristic_distance(v.position_node, request.start_node)
                 if weight < lowest_weight:
                     lowest_weight = weight
                     best_vehicle = v
 
             if best_vehicle:
-                self.pedidos.remove(pedido)
-                veiculos_disponiveis.remove(best_vehicle)
-                self._atribuir_pedido_a_veiculo(pedido, best_vehicle)
+                self.requests.remove(request)
+                available_vehicles.remove(best_vehicle)
+                self._assign_request_to_vehicle(request, best_vehicle)
 
-                if not veiculos_disponiveis:
-                    break
+    def _generate_new_requests_if_needed(self):
+        if not self.requests:
+            print(
+                f"[Simulação] Fila de requests vazia. A gerar {self.NUM_REQUESTS_TO_GENERATE} novos requests."
+            )
+            for _ in range(self.NUM_REQUESTS_TO_GENERATE):
+                self.requests.append(generate_random_request(list(self.map.nos)))
 
-    def _atribuir_pedido_a_veiculo(self, pedido: Pedido, v: Veiculo):
-        self.pedidos_a_ir_buscar.append(pedido)
-        v.pedido_atual = pedido
-        v.estado = EstadoVeiculo.A_CAMINHO_CLIENTE
+    def _update_vehicle_movement(self, v: Vehicle, time_to_advance: float):
+        # Updates the position of a vehicle in transit between two nodes
+        if not v.end_node:
+            return
+
+        v.time_passed_on_trip += time_to_advance
+
+        if v.time_passed_on_trip >= v.extimated_trip_time:
+            # Vehicle has arrived at the end_node
+            v.remaining_km -= v.total_request_km
+
+            v.position_node = v.end_node
+            v.map_coordinates = v.position_node.position
+
+            # Clear transit state
+            v.start_node = None
+            v.end_node = None
+            v.time_passed_on_trip = 0
+            v.extimated_trip_time = 0
+            v.total_request_km = 0.0
+
+        else:
+            # Vehicle is mid-trip. Interpolate position for the GUI.
+            progress = v.time_passed_on_trip / v.extimated_trip_time
+            x1, y1 = v.start_node.position
+            x2, y2 = v.end_node.position
+            new_x = x1 + (x2 - x1) * progress
+            new_y = y1 + (y2 - y1) * progress
+            v.map_coordinates = (new_x, new_y)
+
+    def _manage_stopped_vehicle(self, v: Vehicle):
+        # 1. If it has a route, advance to the next node in the route
+        if v.route_to_do:
+            if v.route_to_do[0] != v.position_node:
+                # Invalid route (doesn't start where the vehicle is)
+                v.route_to_do = []
+
+            elif len(v.route_to_do) >= 2:
+                # Start movement to the next node in the route
+                next_node = v.route_to_do[1]
+                v.start_node = v.position_node
+                v.end_node = next_node
+                v.route_to_do = v.route_to_do[1:]  # Advance the route
+
+                edge_info = self.map.connection_weight(v.start_node, v.end_node)
+                if edge_info:
+                    distance, time = edge_info
+                    v.total_request_km = distance
+                    v.extimated_trip_time = time
+                    v.time_passed_on_trip = 0.0
+                return  # The vehicle is now in motion
+
+            else:
+                # Reached the end of the route (list only has the current node)
+                v.route_to_do = []
+
+        # 2. If not moving, manage state (e.g., pickup/dropoff client)
+        if v.condition == VehicleCondition.ON_WAY_TO_CLIENT:
+            self._manage_state_on_way_to_client(v)
+
+        elif v.condition == VehicleCondition.ON_TRIP_WITH_CLIENT:
+            self._manage_state_on_trip(v)
+
+        elif v.condition == VehicleCondition.AVAILABLE:
+            # TODO: Check if it needs to refuel
+            # if v.remaining_km < self.LOW_AUTONOMY_THRESHOLD:
+            #    _find_station_and_set_route(v)
+            pass
+
+    def _assign_request_to_vehicle(self, request: Request, v: Vehicle):
+        self.requests_to_pickup.append(request)
+        v.request = request
+        v.condition = VehicleCondition.ON_WAY_TO_CLIENT
 
         print(
-            f"[Atribuição] {v.id_veiculo} (mais próximo) aceitou {pedido.id_pedido}. "
-            f"A caminho de {pedido.origem.position}"
+            f"[Assignment] {v.id} (mais próximo) aceitou {request.id}. "
+            f"A caminho de {request.start_node.position}"
         )
 
-        caminho = procurar_rota_a_star(self.mapa, v.nodo_atual, pedido.origem)
-        v.rota_atribuida = caminho if caminho else []
+        path = find_a_star_route(self.map, v.position_node, request.start_node)
+        v.route_to_do = path if path else []
 
-    def _gerar_novos_pedidos_se_necessario(self):
-        if not self.pedidos:
-            print("[Simulação] Fila de pedidos vazia. A gerar 4 novos pedidos.")
-            for _ in range(4):
-                self.pedidos.append(criar_pedido_aleatorio(list(self.mapa.nos)))
+    def _manage_state_on_way_to_client(self, v: Vehicle):
+        print(
+            f"{v.id} em {v.position_node.position}. A iniciar viagem para {v.request.end_node.position}"
+        )
+
+        self.requests_to_pickup.remove(v.request)
+        self.requests_to_dropoff.append(v.request)
+        v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
+
+        # Calculate the route to the final end_node
+        path = find_a_star_route(self.map, v.position_node, v.request.end_node)
+        v.route_to_do = path if path else []
+
+    def _manage_state_on_trip(self, v: Vehicle):
+        print(
+            f"{v.id} completou a viagem em {v.position_node.position}. Disponível."
+            f"Autonomia restante: {v.remaining_km:.1f} km"
+        )
+        self.requests_to_dropoff.remove(v.request)
+        v.condition = VehicleCondition.AVAILABLE
+        v.request = None
+        v.route_to_do = []

@@ -1,67 +1,59 @@
 from typing import Tuple, Set, Dict, List, Optional
-from nodo import Node
+from models import Node
 
-# (distancia_km, tempo_minutos)
+# (Distance Km, time minutes)
 TipoAresta = Tuple[float, float]
 
 
-class GrafoCidade:
+class CityGraph:
 
     def __init__(self):
-        # Armazena todos os objetos Node únicos
         self.nos: Set[Node] = set()
-
-        # O mapa de adjacência (usa Node como chave)
         self.adj: Dict[Node, Dict[Node, TipoAresta]] = {}
+        self.position_to_node: Dict[Tuple[int, int], Node] = {}  # Node position
 
-        # Posição -> Nó O(1)
-        self.posicao_para_no: Dict[Tuple[int, int], Node] = {}
-
-    def adicionar_no(self, no: Node):
-        # Adiciona um nó (Node) ao grafo. Se um nó com a mesma posição já existir substitui.
+    def add_node(self, no: Node):
+        # If it already exists it will replace
         if no not in self.nos:
             self.nos.add(no)
-            self.adj[no] = {}  # Inicializa o dicionário de vizinhos
-            self.posicao_para_no[no.position] = no  # Adiciona ao índice
+            self.adj[no] = {}
+            self.position_to_node[no.position] = no
 
-    def existe_no(self, no: Node) -> bool:
+    def node_exists(self, no: Node) -> bool:
         return no in self.nos
 
-    def obter_no_por_posicao(self, position: Tuple[int, int]) -> Optional[Node]:
-        return self.posicao_para_no.get(position)
+    def get_node_by_position(self, position: Tuple[int, int]) -> Optional[Node]:
+        return self.position_to_node.get(position)
 
-    def adicionar_aresta(
+    def add_connection(
         self,
-        origem: Node,
-        destino: Node,
-        distancia_km: float,
-        tempo_minutos: float,
+        start_node: Node,
+        end_node: Node,
+        distance_km: float,
+        time: float,  # Minutes
         bidirecional: bool = True,
     ):
-        # Adiciona uma aresta (caminho) entre dois Nós. Se os nós não existirem no grafo, são adicionados.
-        self.adicionar_no(origem)
-        self.adicionar_no(destino)
+        self.add_node(start_node)
+        self.add_node(end_node)
 
-        # Adiciona a aresta origem -> destino
-        self.adj[origem][destino] = (distancia_km, tempo_minutos)
+        self.adj[start_node][end_node] = (distance_km, time)
 
         if bidirecional:
-            # Adiciona a aresta destino -> origem
-            self.adj[destino][origem] = (distancia_km, tempo_minutos)
+            self.adj[end_node][start_node] = (distance_km, time)
 
-    def obter_vizinhos(self, no: Node) -> List[Node]:
+    def get_node_neighbours(self, no: Node) -> List[Node]:
         if no not in self.adj:
             return []
         return list(self.adj[no].keys())
 
-    def obter_peso_aresta(self, origem: Node, destino: Node) -> Optional[TipoAresta]:
-        # Retorna o peso (distancia, tempo) de uma aresta. Retorna None se o caminho não existir.
-        if origem in self.adj and destino in self.adj[origem]:
-            return self.adj[origem][destino]
+    def connection_weight(
+        self, start_node: Node, end_node: Node
+    ) -> Optional[TipoAresta]:
+        if start_node in self.adj and end_node in self.adj[start_node]:
+            return self.adj[start_node][end_node]
         return None
 
     def __str__(self) -> str:
-        # Método auxiliar para imprimir o grafo de forma legível
         output = "Grafo da Cidade:\n"
         output += f"Total de Nós: {len(self.nos)}\n"
         output += "--- Arestas\n"

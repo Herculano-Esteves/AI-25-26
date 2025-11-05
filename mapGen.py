@@ -1,111 +1,119 @@
 import networkx as nx
 import random
-from graph import GrafoCidade
-from nodo import Node
-from models import Veiculo, Pedido, Motorizacao
+from graph import CityGraph
+from models import Node, Vehicle, Request, Motor
 from typing import Tuple, List
 
 
-def criar_mapa_gerado(
-    largura=10, altura=10, prob_posto_gas=0.1, prob_estacao_ev=0.1
-) -> Tuple[GrafoCidade, List[Veiculo], List[Pedido]]:
-    mapa = GrafoCidade()
-    nos_criados = {}
+def generate_map(
+    width=10, height=10, gas_probability=0.1, ev_probability=0.1
+) -> CityGraph:
+    map = CityGraph()
+    created_nodes = {}
 
     # Create nodes
-    for x in range(largura):
-        for y in range(altura):
+    for x in range(width):
+        for y in range(height):
             gas_pumps = 0
             energy_chargers = 0
 
-            if random.random() < prob_posto_gas:
+            if random.random() < gas_probability:
                 gas_pumps = random.randint(2, 6)
 
-            if random.random() < prob_estacao_ev:
+            if random.random() < ev_probability:
                 energy_chargers = random.randint(2, 6)
 
             pos = (x, y)
             no = Node(pos, gas_pumps, energy_chargers, random.randint(200, 900))
-            nos_criados[pos] = no
-            mapa.adicionar_no(no)
+            created_nodes[pos] = no
+            map.add_node(no)
 
     # Creates streets
-    G_grid = nx.grid_2d_graph(largura, altura)
+    G_grid = nx.grid_2d_graph(width, height)
 
     for u_pos, v_pos in G_grid.edges():
-        no_origem = nos_criados[u_pos]
-        no_destino = nos_criados[v_pos]
+        no_origem = created_nodes[u_pos]
+        no_destino = created_nodes[v_pos]
 
         distancia = 1.0
         tempo = random.uniform(1.5, 3.0)
 
-        mapa.adicionar_aresta(no_origem, no_destino, distancia, tempo, True)
+        map.add_connection(no_origem, no_destino, distancia, tempo, True)
 
-    todos_os_nos = list(nos_criados.values())
-    garantir_ponto_interesse(todos_os_nos, Motorizacao.ELETRICO)
-    garantir_ponto_interesse(todos_os_nos, Motorizacao.COMBUSTAO)
+    all_nodes = list(created_nodes.values())
+    gas_ev_station_grant_existance(all_nodes)
 
+    print(f"Mapa gerado: {width}x{height} ({len(all_nodes)} nós).")
+    return map
+
+
+def _create_vehicle(
+    id_prefix: str,
+    motor: Motor,
+    loc: Node,
+    cost_per_km: float,
+    range: int,
+    max_range: int,
+) -> Vehicle:
+    return Vehicle(
+        f"V-{id_prefix}",
+        motor,
+        loc,
+        random.randint(3, 7),
+        cost_per_km,
+        random.randint(range, max_range),
+        random.randint(50, range),
+    )
+
+
+def create_vehicle_fleet(
+    all_nodes: List[Node], num_ev: int, num_gas: int
+) -> List[Vehicle]:
     veiculos = []
+
     # Generates eletric vehicles
-    for i in range(3):
-        loc = random.choice(todos_os_nos)
+    for i in range(num_ev):
+        loc = random.choice(all_nodes)
         veiculos.append(
-            Veiculo(
-                f"V-EV{i+1}",
-                Motorizacao.ELETRICO,
-                loc,
-                random.randint(3, 7),
-                0.035,
-                random.randint(350, 650),
-                random.randint(50, 650),
-            )
+            _create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 350, 650)
         )
 
     # Generates combustion vehicles
-    for i in range(3):
-        loc = random.choice(todos_os_nos)
+    for i in range(num_gas):
+        loc = random.choice(all_nodes)
         veiculos.append(
-            Veiculo(
-                f"V-GAS{i+1}",
-                Motorizacao.COMBUSTAO,
-                loc,
-                random.randint(3, 7),
-                0.098,
-                random.randint(600, 900),
-                random.randint(50, 900),
-            )
+            _create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 600, 900)
         )
 
-    # Generates random requests
-    pedidos = []
-    for i in range(5):
-        pedidos.append(criar_pedido_aleatorio(todos_os_nos))
-
-    print(
-        f"Mapa gerado: {largura}x{altura} ({len(todos_os_nos)} nós). {len(veiculos)} veículos e {len(pedidos)} pedidos criados."
-    )
-    return mapa, veiculos, pedidos
+    print(f"Frota gerada: {len(veiculos)} veículos criados.")
+    return veiculos
 
 
-def garantir_ponto_interesse(todos_os_nos, tipo_ponto):
-    if tipo_ponto == Motorizacao.ELETRICO:
-        if any(n.energy_chargers > 0 for n in todos_os_nos):
-            return
-        # Converte um nó aleatório
-        no_a_converter = random.choice(todos_os_nos)
+def generate_requests(all_nodes: List[Node], num_requests: int) -> List[Request]:
+    requests = []
+    for _ in range(num_requests):
+        requests.append(generate_random_request(all_nodes))
+    print(f"Pedidos gerados: {len(requests)} requests iniciais criados.")
+    return requests
+
+
+def gas_ev_station_grant_existance(all_nodes):
+    if not any(n.energy_chargers > 0 for n in all_nodes):
+        no_a_converter = random.choice(all_nodes)
         no_a_converter.energy_chargers = random.randint(2, 4)
 
-    elif tipo_ponto == Motorizacao.COMBUSTAO:
-        if any(n.gas_pumps > 0 for n in todos_os_nos):
-            return
-        # Converte um nó aleatório
-        no_a_converter = random.choice(todos_os_nos)
+    if not any(n.gas_pumps > 0 for n in all_nodes):
+        no_a_converter = random.choice(all_nodes)
         no_a_converter.gas_pumps = random.randint(2, 4)
 
 
-def criar_pedido_aleatorio(nos: List[Node]) -> Pedido:
-    origem = random.choice(nos)
-    destino = random.choice(nos)
-    while origem == destino:
-        destino = random.choice(nos)
-    return Pedido(origem, destino, random.randint(1, 7))
+def generate_random_request(nos: List[Node]) -> Request:
+    start_node = random.choice(nos)
+    end_node = random.choice(nos)
+    while start_node == end_node:
+        end_node = random.choice(nos)
+    return Request(
+        start_node=start_node,
+        end_node=end_node,
+        passenger_capacity=random.randint(1, 7),
+    )
