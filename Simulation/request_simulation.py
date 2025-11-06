@@ -1,5 +1,5 @@
 from typing import List, TYPE_CHECKING
-from models import VehicleCondition, Vehicle, Request, Node
+from models import VehicleCondition, Vehicle, Request, Node, Motor
 from search import find_a_star_route, _heuristic_distance
 from mapGen import generate_random_request
 
@@ -65,6 +65,8 @@ eficiência global, minimizando o tempo e a distância desperdiçados em desloca
 em vez de tomar decisões "gulosas" (greedy) que poderiam ser subótimas a longo prazo.
 """
 
+ENVIRONMENTAL_PREFERENCE_PENALTY = 15.0  # Penalty in minutes (maybe make it infinite to make it impossible to use combustion)
+
 
 def assign_pending_requests(simulator: "Simulator"):
     pending_requests = simulator.requests
@@ -99,8 +101,15 @@ def assign_pending_requests(simulator: "Simulator"):
             if path_info:
                 # The cost is the 'time'
                 _, time, _ = path_info
+
+                if (
+                    request.environmental_preference
+                    and vehicle.motor == Motor.COMBUSTION
+                ):
+                    time += ENVIRONMENTAL_PREFERENCE_PENALTY
+
                 cost_matrix[i, j] = time
-            # cost_matrix remains 'inf' (no path)
+            # cost_matrix remains 'inf' if no path found
 
     # Find which requests are serviceable
     serviceable_request_indices = []
@@ -168,6 +177,7 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
     print(
         f"[Assignment] {v.id} aceitou {request.id}."
         f"A caminho de {request.start_node.position}"
+        f"Preferencia ambiental: {request.environmental_preference}"
     )
 
     object = find_a_star_route(simulator.map, v.position_node, request.start_node)
