@@ -58,5 +58,5 @@ class Simulator:
         for v in self.vehicles:
             manage_vehicle(self, v, time_to_advance)
 
-        assign_pending_requests(self)
         generate_new_requests_if_needed(self)
+        assign_pending_requests(self)

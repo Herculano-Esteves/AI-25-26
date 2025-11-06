@@ -96,9 +96,7 @@ def manage_state_on_way_to_client(simulator: "Simulator", v: Vehicle):
         v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
 
         # Calculate the route to the final end_node
-        object = find_a_star_route(
-            simulator.map, v.position_node, v.request.end_node
-        )
+        object = find_a_star_route(simulator.map, v.position_node, v.request.end_node)
         if object:
             path, time, distance = object
             v.route_to_do = path if path else []
