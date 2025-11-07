@@ -1,7 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-
-from models import Motor
+from models import Motor, VehicleCondition
 from Simulation.simulator import Simulator
 
 import os
@@ -38,9 +37,8 @@ class MapApplication:
     def __init__(self, root):
         self.root = root
         self.root.title("Simulador de Frota")
-        self.root.geometry("1000x1000")
+        self.root.geometry("1400x1000")
 
-        # Saves images references
         self.sprite_cache = {}
         try:
             self._load_sprites()
@@ -61,13 +59,11 @@ class MapApplication:
         self.offset_y = 0.0
         self.zoom = 20.0  # Pixels per world unit
 
-        # Slide variables
         self._drag_start_x = 0
         self._drag_start_y = 0
         self._drag_start_offset_x = 0
         self._drag_start_offset_y = 0
 
-        # Iterface setup
         self._create_interface()
         self._setup_bindings()
         self.reset_view()
@@ -100,13 +96,102 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=5)
 
-        # Canvas frame
-        canvas_frame = ttk.Frame(self.root)
-        canvas_frame.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
+        # PanedWindow
+        self.main_paned_window = ttk.PanedWindow(
+            self.root, orient=tk.HORIZONTAL
+        )
+        self.main_paned_window.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        # Tkinter
-        self.canvas = tk.Canvas(canvas_frame, bg=self.BG_COLOR, cursor="crosshair")
+        # Map 
+        map_frame = ttk.Frame(self.main_paned_window)
+        map_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+        self.main_paned_window.add(map_frame, weight=3)  # Map gets 3/4 space
+
+        # Tkinter Map "Canvas"
+        self.canvas = tk.Canvas(map_frame, bg=self.BG_COLOR, cursor="crosshair")
         self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
+
+        # Stats Panel
+        self._create_stats_panel()
+        self.main_paned_window.add(self.stats_frame, weight=1)  # Stats get 1/4 space
+
+    def _create_stats_panel(self):
+        self.stats_frame = ttk.Frame(self.main_paned_window, width=400)
+        self.stats_frame.pack(fill=tk.BOTH, expand=True)
+
+        # Notebook
+        notebook = ttk.Notebook(self.stats_frame)
+        notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+
+        # Vehicles
+        vehicle_tab = ttk.Frame(notebook)
+        notebook.add(vehicle_tab, text="Frota (Veículos)")
+
+        # Treeview for vehicle
+        cols = ("id", "status", "autonomy", "request", "motor", "capacidade")
+        self.vehicle_tree = ttk.Treeview(
+            vehicle_tab, columns=cols, show="headings"
+        )
+
+        self.vehicle_tree.heading("id", text="ID")
+        self.vehicle_tree.heading("status", text="Estado")
+        self.vehicle_tree.heading("autonomy", text="Autonomia")
+        self.vehicle_tree.heading("request", text="Pedido")
+        self.vehicle_tree.heading("motor", text="Motor")
+        self.vehicle_tree.heading("capacidade", text="Cap.")
+
+        self.vehicle_tree.column("id", width=40)
+        self.vehicle_tree.column("status", width=120)
+        self.vehicle_tree.column("autonomy", width=90)
+        self.vehicle_tree.column("request", width=60)
+        self.vehicle_tree.column("motor", width=65)
+        self.vehicle_tree.column("capacidade", width=40)
+
+        # Sscrollbar
+        scrollbar = ttk.Scrollbar(
+            vehicle_tab, orient=tk.VERTICAL, command=self.vehicle_tree.yview
+        )
+        self.vehicle_tree.configure(yscrollcommand=scrollbar.set)
+
+        scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.vehicle_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Requests
+        request_tab = ttk.Frame(notebook)
+        notebook.add(request_tab, text="Pedidos")
+
+        # Treeview for request
+        req_cols = ("id", "status", "from", "to", "pax", "pref")
+        self.request_tree = ttk.Treeview(
+            request_tab, columns=req_cols, show="headings"
+        )
+
+        self.request_tree.heading("id", text="ID")
+        self.request_tree.heading("status", text="Estado")
+        self.request_tree.heading("from", text="Origem")
+        self.request_tree.heading("to", text="Destino")
+        self.request_tree.heading("pax", text="Cap.")
+        self.request_tree.heading("pref", text="Pref.")
+
+        self.request_tree.column("id", width=40)
+        self.request_tree.column("status", width=100)
+        self.request_tree.column("from", width=80)
+        self.request_tree.column("to", width=80)
+        self.request_tree.column("pax", width=40)
+        self.request_tree.column("pref", width=60)
+
+        # Scrollbar
+        req_scrollbar = ttk.Scrollbar(
+            request_tab, orient=tk.VERTICAL, command=self.request_tree.yview
+        )
+        self.request_tree.configure(yscrollcommand=req_scrollbar.set)
+
+        req_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
+        self.request_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+
+        # Style
+        ttk.Style().configure("Stats.TLabel", font=("Arial", 12))
+        ttk.Style().configure("StatsVal.TLabel", font=("Arial", 12, "bold"))
 
     def _setup_bindings(self):
         # Linux only
@@ -186,7 +271,6 @@ class MapApplication:
         self.redraw_full_canvas()
 
     def start_simulation(self):
-        # Simulation loop starter
         if self.simulation_running:
             return
         print("A iniciar simulação...")
@@ -200,7 +284,6 @@ class MapApplication:
         self._simulation_gui_loop()
 
     def stop_simulation(self):
-        # Pause simulation loop
         print("A parar simulação...")
         self.simulation_running = False
 
@@ -215,7 +298,58 @@ class MapApplication:
 
         self.simulator.simulation_step()  # 1 simulation frame
         self.update_dynamic_visuals()  # Visual update
+        self._update_stats_panel()  # Update stats panel
         self.root.after(self.TICK_RATE_MS, self._simulation_gui_loop)  # Next frame
+
+    def _update_stats_panel(self):
+        if not self.simulator:
+            return
+
+        # Update Vehicle Tab
+        self.vehicle_tree.delete(*self.vehicle_tree.get_children())  # Clear old data
+        for v in self.simulator.vehicles:
+            autonomy_str = f"{v.remaining_km:.1f} / {v.max_km:.0f} km"
+            request_id = v.request.id if v.request else "---"
+            status_str = v.condition.name.replace("_", " ").title()
+
+            values = (
+                v.id,
+                status_str,
+                autonomy_str,
+                request_id,
+                v.motor.name.title(),
+                v.passenger_capacity,
+            )
+            self.vehicle_tree.insert("", tk.END, values=values)
+
+        # Update Request Tab
+        self.request_tree.delete(*self.request_tree.get_children())  # Clear old data
+
+        def format_request_values(req, status):
+            pref_str = "EV" if req.environmental_preference else "---"
+            return (
+                req.id,
+                status,
+                str(req.start_node.position),
+                str(req.end_node.position),
+                req.passenger_capacity,
+                pref_str,
+            )
+
+        # Requests from all three lists
+        lista = list()
+        for r in self.simulator.requests:
+            lista.append(format_request_values(r, "Pendente")) 
+
+        for r in self.simulator.requests_to_pickup:
+            lista.append(format_request_values(r, "Apanhar"))
+
+        for r in self.simulator.requests_to_dropoff:
+            lista.append(format_request_values(r, "Viagem"))
+
+        for r in sorted(lista):
+            self.request_tree.insert("", tk.END, values=r)
+
 
     def update_dynamic_visuals(self):
         for v in self.simulator.vehicles:

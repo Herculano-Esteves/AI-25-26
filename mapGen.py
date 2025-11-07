@@ -10,6 +10,7 @@ def generate_map(
 ) -> CityGraph:
     map = CityGraph()
     created_nodes = {}
+    all_nodes = list()
 
     # Create nodes
     for x in range(width):

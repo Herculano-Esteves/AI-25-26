@@ -86,6 +86,11 @@ class Request:
         if not isinstance(other, Request):
             return NotImplemented
         return self.id == other.id
+    
+    def __lt__(self, other):
+        if not isinstance(other, Request):
+            return NotImplemented
+        return self.id < other.id
 
 
 class Vehicle:
