@@ -18,7 +18,7 @@ class Simulator:
     # Simulation Constants
     MAP_WIDTH = 20
     MAP_HEIGHT = 20
-    SIM_TIME_PER_TICK = 0.1  # Time in minutes per frame
+    SIM_TIME_PER_TICK = 0.2  # Time in minutes per frame
     LOW_AUTONOMY_THRESHOLD = 50.0
     NUM_EV_VEHICLES = 3
     NUM_GAS_VEHICLES = 3

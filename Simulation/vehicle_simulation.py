@@ -1,16 +1,19 @@
 from search import find_a_star_route
-from models import VehicleCondition, Vehicle, Request, Node
+from models import VehicleCondition, Vehicle, Node, Motor
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from Simulation.simulator import Simulator
 
 
+PENALTY_TIME = 30.0
+GAS_REFUEL_TIME_MINUTES = 5.0
+
 def manage_vehicle(simulator: "Simulator", v: Vehicle, time_to_advance: float):
     if v.current_route:
         _update_continuous_movement(simulator, v, time_to_advance)
     else:
-        _manage_stopped_vehicle_state(simulator, v)
+        _manage_stopped_vehicle_state(simulator, v, time_to_advance)
 
 
 def _update_continuous_movement(
@@ -57,6 +60,27 @@ def _update_continuous_movement(
             time_remaining_in_tick -= time_needed_to_finish_segment
 
             v.remaining_km -= segment_distance
+
+            if v.remaining_km <= 0:
+                print(f"[Vehicle] Veículo {v.id} ficou sem autonomia!")
+                v.remaining_km = 0
+                v.condition = VehicleCondition.UNAVAILABLE
+                v.time_stopped = 0.0
+                v.current_route = []
+                v.current_segment_index = 0
+                
+                if v.request:
+                    print(f"[Vehicle] Pedido {v.request.id} foi cancelado.")
+                    if v.request in simulator.requests_to_pickup:
+                        simulator.requests_to_pickup.remove(v.request)
+                    if v.request in simulator.requests_to_dropoff:
+                        simulator.requests_to_dropoff.remove(v.request)
+                    simulator.requests.append(v.request)
+                    v.request = None
+
+                time_remaining_in_tick = 0.0
+                break
+
             v.position_node = end_node
             v.map_coordinates = end_node.position
             v.current_segment_index += 1
@@ -108,18 +132,105 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
         v.condition = VehicleCondition.AVAILABLE
         v.request = None
 
+    elif v.condition == VehicleCondition.ON_WAY_TO_STATION:
+        print(f"[Vehicle] {v.id} chegou à estação em {v.position_node.position}.")
+        v.condition = VehicleCondition.AT_STATION
+        v.time_stopped = 0.0
+
     elif v.condition == VehicleCondition.AT_STATION:
         # TODO: Logic for finishing refueling
         pass
 
 
-def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle):
-    if v.condition == VehicleCondition.AVAILABLE:
-        # Where the refueling check from your
-        # original 'manage_stopped_vehicle' would go.
-        # if v.remaining_km < simulator.LOW_AUTONOMY_THRESHOLD:
-        #    _find_station_and_set_route(v)
-        pass
+def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_advance: float):
+    
+    if v.condition == VehicleCondition.UNAVAILABLE:
+        v.time_stopped += time_to_advance
+
+        if v.time_stopped >= PENALTY_TIME:
+            print(f"[Vehicle] {v.id} cumpriu penalidade. A voltar ao serviço.")
+            v.condition = VehicleCondition.AVAILABLE
+            v.remaining_km = simulator.LOW_AUTONOMY_THRESHOLD
+            v.time_stopped = 0.0
+
+    elif v.condition == VehicleCondition.AVAILABLE:
+        if v.remaining_km < simulator.LOW_AUTONOMY_THRESHOLD:
+            _find_station_and_set_route(simulator, v)
+
+    elif v.condition == VehicleCondition.AT_STATION:
+        _handle_refueling_at_station(simulator, v, time_to_advance)
+
+
+# Depois adicionar procura inteligente de estações pois a velocidade de carregamento varia
+def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_advance: float):
+    
+    v.time_stopped += time_to_advance
+
+    if v.motor == Motor.ELECTRIC:
+        
+        node = v.position_node
+        rate_km_per_hour = node.energy_recharge_rate_kw
+        
+        if rate_km_per_hour <= 0:
+            rate_km_per_hour = 300.0
+            
+        rate_km_per_minute = rate_km_per_hour / 60.0
+        km_recharged_this_tick = time_to_advance * rate_km_per_minute
+        
+        v.remaining_km += km_recharged_this_tick
+
+        if v.remaining_km >= v.max_km:
+            v.remaining_km = v.max_km
+            v.condition = VehicleCondition.AVAILABLE
+            v.time_stopped = 0.0
+            print(f"[Vehicle] {v.id} (EV) carregamento completo.")
+
+    else:        
+        if v.time_stopped >= GAS_REFUEL_TIME_MINUTES:
+            v.remaining_km = v.max_km
+            v.condition = VehicleCondition.AVAILABLE
+            v.time_stopped = 0.0
+            print(f"[Vehicle] {v.id} (Gas) reabastecimento completo.")
+
+
+def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
+    
+    target_nodes = []
+    if v.motor == Motor.ELECTRIC:
+        target_nodes = [n for n in simulator.map.nos if n.energy_chargers > 0]
+    else:
+        target_nodes = [n for n in simulator.map.nos if n.gas_pumps > 0]
+    
+    if not target_nodes:
+        print(f"[Vehicle] AVISO: {v.id} não encontrou estações de {v.motor.name}!")
+        return
+
+    best_station = None
+    best_path_info = None
+    min_time = float('inf')
+
+    for station in target_nodes:
+        path_info = find_a_star_route(simulator.map, v.position_node, station)
+        
+        if path_info:
+            path, time, distance = path_info
+            
+            if v.remaining_km > distance and time < min_time: # neste tempo adicionar a tempo de recarremanento
+                min_time = time
+                best_station = station
+                best_path_info = path_info
+    
+    if best_path_info:
+        path, time, distance = best_path_info
+        if best_station:
+            print(f"[Vehicle] {v.id} (Autonomia: {v.remaining_km:.1f}km) a caminho da estação {best_station.position}. Dist: {distance:.1f}km")
+        
+        v.current_route = path
+        v.current_segment_index = 0
+        v.current_segment_progress_time = 0.0
+        v.condition = VehicleCondition.ON_WAY_TO_STATION
+    else:
+        print(f"[Vehicle] AVISO: {v.id} não consegue alcançar nenhuma estação de {v.motor.name} com {v.remaining_km:.1f}km de autonomia!")
 
 
 def _update_gui_coordinates(

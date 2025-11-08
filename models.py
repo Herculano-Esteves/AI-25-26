@@ -53,6 +53,7 @@ class VehicleCondition(Enum):
     AVAILABLE = auto()
     ON_WAY_TO_CLIENT = auto()
     ON_TRIP_WITH_CLIENT = auto()
+    ON_WAY_TO_STATION = auto()
     AT_STATION = auto()
     UNAVAILABLE = auto()
 
@@ -126,6 +127,8 @@ class Vehicle:
         # Example: index 0 means moving from route[0] to route[1]
         self.current_segment_index = 0
         self.current_segment_progress_time: float = 0.0
+
+        self.time_stopped: float = 0.0 # Time penalty
 
         # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position

@@ -74,8 +74,12 @@ def assign_pending_requests(simulator: "Simulator"):
         return
 
     available_vehicles = [
-        v for v in simulator.vehicles if v.condition == VehicleCondition.AVAILABLE
+        v
+        for v in simulator.vehicles
+        if v.condition == VehicleCondition.AVAILABLE
+        and v.remaining_km >= simulator.LOW_AUTONOMY_THRESHOLD
     ]
+    
     if not available_vehicles:
         return
 
