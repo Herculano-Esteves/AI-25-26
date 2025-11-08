@@ -26,7 +26,6 @@ class Simulator:
     NUM_REQUESTS_TO_GENERATE = 4
 
     def __init__(self):
-        # Variables
         self.vehicles: List[Vehicle] = []
         self.requests: List[Request] = []
         self.requests_to_pickup: List[Request] = []
@@ -35,18 +34,15 @@ class Simulator:
         self.setup_new_map()
 
     def setup_new_map(self):
-        print("A criar novo map...")
-        # 1. Generate the map graph
+        print("A criar novo mapa...")
         self.map = generate_map(self.MAP_WIDTH, self.MAP_HEIGHT, 0.02, 0.005)
 
         all_nodes = list(self.map.nos)
 
-        # 2. Generate the vehicle fleet
         self.vehicles = create_vehicle_fleet(
             all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES
         )
 
-        # 3. Generate the initial requests
         self.requests = generate_requests(all_nodes, self.NUM_INITIAL_REQUESTS)
 
         self.requests_to_pickup = []

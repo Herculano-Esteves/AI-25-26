@@ -97,12 +97,10 @@ class MapApplication:
         self.btn_stop_sim.pack(side=tk.LEFT, padx=5)
 
         # PanedWindow
-        self.main_paned_window = ttk.PanedWindow(
-            self.root, orient=tk.HORIZONTAL
-        )
+        self.main_paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.main_paned_window.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        # Map 
+        # Map
         map_frame = ttk.Frame(self.main_paned_window)
         map_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
         self.main_paned_window.add(map_frame, weight=3)  # Map gets 3/4 space
@@ -129,9 +127,7 @@ class MapApplication:
 
         # Treeview for vehicle
         cols = ("id", "status", "autonomy", "request", "motor", "capacidade")
-        self.vehicle_tree = ttk.Treeview(
-            vehicle_tab, columns=cols, show="headings"
-        )
+        self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
 
         self.vehicle_tree.heading("id", text="ID")
         self.vehicle_tree.heading("status", text="Estado")
@@ -162,9 +158,7 @@ class MapApplication:
 
         # Treeview for request
         req_cols = ("id", "status", "from", "to", "pax", "pref")
-        self.request_tree = ttk.Treeview(
-            request_tab, columns=req_cols, show="headings"
-        )
+        self.request_tree = ttk.Treeview(request_tab, columns=req_cols, show="headings")
 
         self.request_tree.heading("id", text="ID")
         self.request_tree.heading("status", text="Estado")
@@ -339,7 +333,7 @@ class MapApplication:
         # Requests from all three lists
         lista = list()
         for r in self.simulator.requests:
-            lista.append(format_request_values(r, "Pendente")) 
+            lista.append(format_request_values(r, "Pendente"))
 
         for r in self.simulator.requests_to_pickup:
             lista.append(format_request_values(r, "Apanhar"))
@@ -349,7 +343,6 @@ class MapApplication:
 
         for r in sorted(lista):
             self.request_tree.insert("", tk.END, values=r)
-
 
     def update_dynamic_visuals(self):
         for v in self.simulator.vehicles:

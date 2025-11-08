@@ -144,8 +144,19 @@ def assign_pending_requests(simulator: "Simulator"):
     if feasible_matrix.size == 0:
         return
 
-    # Solve the Assignment Problem
-    vehicle_indices, request_indices = linear_sum_assignment(feasible_matrix)
+    # Check if there is at least one finite number
+    if not np.any(np.isfinite(feasible_matrix)):
+        return
+
+    # Replace inf for a huge number (biggest number * row * col)
+    solver_matrix = np.copy(feasible_matrix)
+    finite_max = np.max(solver_matrix[np.isfinite(solver_matrix)])
+    num_rows, num_cols = solver_matrix.shape
+    biggest_cost = (finite_max * max(num_rows, num_cols)) + 1
+    solver_matrix[np.isinf(solver_matrix)] = biggest_cost
+
+    # Solve
+    vehicle_indices, request_indices = linear_sum_assignment(solver_matrix)
 
     assignments_to_make = []
     for v_id, r_id in zip(vehicle_indices, request_indices):
@@ -158,13 +169,11 @@ def assign_pending_requests(simulator: "Simulator"):
         request = serviceable_requests[r_id]
         assignments_to_make.append((vehicle, request))
 
-    # 7. Execute assignments
     for vehicle, request in assignments_to_make:
         if (
             request in simulator.requests
             and vehicle.condition == VehicleCondition.AVAILABLE
         ):
-
             assign_request_to_vehicle(simulator, request, vehicle)
 
 
@@ -176,20 +185,22 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
 
     print(
         f"[Assignment] {v.id} aceitou {request.id}."
-        f"A caminho de {request.start_node.position}"
+        f"A caminho de {request.start_node.position}."
         f"Preferencia ambiental: {request.environmental_preference}"
     )
 
-    object = find_a_star_route(simulator.map, v.position_node, request.start_node)
+    path_info = find_a_star_route(simulator.map, v.position_node, request.start_node)
 
     path = None
-    if object:
-        path, time, distance = object
+    if path_info:
+        path, time, distance = path_info
 
     if path:
-        v.route_to_do = path
+        v.current_route = path
+        v.current_segment_index = 0
+        v.current_segment_progress_time = 0.0
     else:
-        print(f"[ERROR] No path found for {v.id} to {request.id}. Resetting vehicle.")
+        print(f"[ERROR] Não foi possivel encontrar caminho {v.id} para {request.id}.")
         v.request = None
         v.condition = VehicleCondition.AVAILABLE
         simulator.requests_to_pickup.remove(request)
@@ -203,10 +214,17 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
         + len(simulator.requests_to_dropoff)
     )
 
-    if total_active_requests < simulator.NUM_INITIAL_REQUESTS:
+    # Right now create requests by hand
+    num_vehicles = len(simulator.vehicles)
+    min_pending_requests = max(2, int(num_vehicles / 3))
+    total_is_low = total_active_requests < simulator.NUM_INITIAL_REQUESTS
+    pending_is_low = len(simulator.requests) < min_pending_requests
+
+    if total_is_low or pending_is_low:
         num_to_gen = simulator.NUM_REQUESTS_TO_GENERATE
         print(
-            f"[Simulação] Poucos requests ativos ({total_active_requests}). A gerar {num_to_gen} novos."
+            f"[Simulation] Criados {num_to_gen} novos pedidos. "
+            f"(Total: {total_active_requests})"
         )
         for _ in range(num_to_gen):
             simulator.requests.append(generate_random_request(list(simulator.map.nos)))

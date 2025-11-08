@@ -1,114 +1,139 @@
-from search import find_a_star_route, _heuristic_distance
+from search import find_a_star_route
 from models import VehicleCondition, Vehicle, Request, Node
-from typing import List, TYPE_CHECKING
+from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:
     from Simulation.simulator import Simulator
 
 
 def manage_vehicle(simulator: "Simulator", v: Vehicle, time_to_advance: float):
-    update_vehicle_movement(v, time_to_advance)
-
-    if not v.end_node:
-        manage_stopped_vehicle(simulator, v)
-
-
-def update_vehicle_movement(v: Vehicle, time_to_advance: float):
-    if not v.end_node:
-        return
-
-    v.time_passed_on_trip += time_to_advance
-
-    if v.time_passed_on_trip >= v.extimated_trip_time:
-        # Vehicle has arrived at the end_node
-        v.remaining_km -= v.total_request_km
-
-        v.position_node = v.end_node
-        v.map_coordinates = v.position_node.position
-
-        # Clear transit state
-        v.start_node = None
-        v.end_node = None
-        v.time_passed_on_trip = 0
-        v.extimated_trip_time = 0
-        v.total_request_km = 0.0
-
+    if v.current_route:
+        _update_continuous_movement(simulator, v, time_to_advance)
     else:
-        # Vehicle is mid-trip. Interpolate position for the GUI.
-        progress = v.time_passed_on_trip / v.extimated_trip_time
-        if v.start_node:
-            x1, y1 = v.start_node.position
-            if v.end_node:
-                x2, y2 = v.end_node.position
-                new_x = x1 + (x2 - x1) * progress
-                new_y = y1 + (y2 - y1) * progress
-                v.map_coordinates = (new_x, new_y)
+        _manage_stopped_vehicle_state(simulator, v)
 
 
-def manage_stopped_vehicle(simulator: "Simulator", v: Vehicle):
-    # 1. If it has a route, advance to the next node in the route
-    if v.route_to_do:
-        if v.route_to_do[0] != v.position_node:
-            # Invalid route (doesn't start where the vehicle is)
-            v.route_to_do = []
+def _update_continuous_movement(
+    simulator: "Simulator", v: Vehicle, time_to_advance: float
+):
+    # Updates the vehicle's position with its route
+    time_remaining_in_tick = time_to_advance
 
-        elif len(v.route_to_do) >= 2:
-            # Start movement to the next node in the route
-            next_node = v.route_to_do[1]
-            v.start_node = v.position_node
-            v.end_node = next_node
-            v.route_to_do = v.route_to_do[1:]  # Advance the route
+    while time_remaining_in_tick > 0:
+        if not v.current_route or v.current_segment_index >= len(v.current_route) - 1:
+            # Check if the vehicle at the end of a route
+            was_at_destination = bool(v.current_route)
+            v.current_route = []
+            v.current_segment_index = 0
+            v.current_segment_progress_time = 0.0
 
-            edge_info = simulator.map.connection_weight(v.start_node, v.end_node)
-            if edge_info:
-                distance, time = edge_info
-                v.total_request_km = distance
-                v.extimated_trip_time = time
-                v.time_passed_on_trip = 0.0
-            return  # The vehicle is now in motion
+            if was_at_destination:
+                _handle_route_arrival(simulator, v)
 
+            break
+
+        # Get the start and end nodes
+        start_node = v.current_route[v.current_segment_index]
+        end_node = v.current_route[v.current_segment_index + 1]
+
+        # Get the travel stats for this segment
+        edge_info = simulator.map.connection_weight(start_node, end_node)
+        if not edge_info:
+            v.current_route = []
+            break
+
+        segment_distance, segment_total_time = edge_info
+        time_needed_to_finish_segment = (
+            segment_total_time - v.current_segment_progress_time
+        )
+
+        if time_remaining_in_tick < time_needed_to_finish_segment:
+            # Vehicle will not finish the segment this tick
+            v.current_segment_progress_time += time_remaining_in_tick
+            _update_gui_coordinates(v, start_node, end_node, segment_total_time)
+            time_remaining_in_tick = 0.0
         else:
-            # Reached the end of the route (list only has the current node)
-            v.route_to_do = []
+            # Vehicle will finish the segment this tick
+            time_remaining_in_tick -= time_needed_to_finish_segment
 
-    # 2. If not moving, manage state (e.g., pickup/dropoff client)
+            v.remaining_km -= segment_distance
+            v.position_node = end_node
+            v.map_coordinates = end_node.position
+            v.current_segment_index += 1
+            v.current_segment_progress_time = 0.0
+
+            if v.current_segment_index >= len(v.current_route) - 1:
+                # This was the last segment
+                v.current_route = []
+                v.current_segment_index = 0
+                _handle_route_arrival(simulator, v)
+                time_remaining_in_tick = 0.0
+
+
+def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
     if v.condition == VehicleCondition.ON_WAY_TO_CLIENT:
-        manage_state_on_way_to_client(simulator, v)
+        # Arrived at the client's pickup location
+        if v.request:
+            print(
+                f"[Vehicle] Veiculo {v.id} chegou ao ponto de recolha de {v.request.id} na posição {v.position_node.position}."
+            )
+
+            simulator.requests_to_pickup.remove(v.request)
+            simulator.requests_to_dropoff.append(v.request)
+            v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
+
+            # Route to the client's destination
+            path_info = find_a_star_route(
+                simulator.map, v.position_node, v.request.end_node
+            )
+            if path_info:
+                path, time, distance = path_info
+                v.current_route = path if path else []
+                v.current_segment_index = 0
+                v.current_segment_progress_time = 0.0
+            else:
+                print(f"[Vehicle] ERROR: Caminho não encontrado do veiculo {v.id}.")
+                simulator.requests_to_dropoff.remove(v.request)
+                simulator.requests.append(v.request)
+                v.request = None
+                v.condition = VehicleCondition.AVAILABLE
 
     elif v.condition == VehicleCondition.ON_TRIP_WITH_CLIENT:
-        manage_state_on_trip(simulator, v)
+        # Arrived at the client's destination
+        if v.request:
+            print(
+                f"[Vehicle] {v.id} viagem completa do pedido {v.request.id} na posição {v.position_node.position}."
+            )
+            simulator.requests_to_dropoff.remove(v.request)
+        v.condition = VehicleCondition.AVAILABLE
+        v.request = None
 
-    elif v.condition == VehicleCondition.AVAILABLE:
-        # TODO: Check if it needs to refuel
+    elif v.condition == VehicleCondition.AT_STATION:
+        # TODO: Logic for finishing refueling
+        pass
+
+
+def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle):
+    if v.condition == VehicleCondition.AVAILABLE:
+        # Where the refueling check from your
+        # original 'manage_stopped_vehicle' would go.
         # if v.remaining_km < simulator.LOW_AUTONOMY_THRESHOLD:
         #    _find_station_and_set_route(v)
         pass
 
 
-def manage_state_on_way_to_client(simulator: "Simulator", v: Vehicle):
-    if v.request:
-        print(
-            f"{v.id} em {v.position_node.position}. A iniciar viagem para {v.request.end_node.position}"
-        )
+def _update_gui_coordinates(
+    v: Vehicle, start_node: Node, end_node: Node, segment_total_time: float
+):
+    # Interpolates the vehicle's (x, y) coordinates for the GUI.
+    if segment_total_time == 0:
+        progress = 1.0
+    else:
+        progress = v.current_segment_progress_time / segment_total_time
 
-        simulator.requests_to_pickup.remove(v.request)
-        simulator.requests_to_dropoff.append(v.request)
-        v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
-
-        # Calculate the route to the final end_node
-        object = find_a_star_route(simulator.map, v.position_node, v.request.end_node)
-        if object:
-            path, time, distance = object
-            v.route_to_do = path if path else []
-
-
-def manage_state_on_trip(simulator: "Simulator", v: Vehicle):
-    print(
-        f"{v.id} completou a viagem em {v.position_node.position}. Disponível."
-        f"Autonomia restante: {v.remaining_km:.1f} km"
-    )
-    if v.request:
-        simulator.requests_to_dropoff.remove(v.request)
-        v.condition = VehicleCondition.AVAILABLE
-        v.request = None
-        v.route_to_do = []
+    progress = max(0.0, min(1.0, progress))
+    x1, y1 = start_node.position
+    x2, y2 = end_node.position
+    new_x = x1 + (x2 - x1) * progress
+    new_y = y1 + (y2 - y1) * progress
+    v.map_coordinates = (new_x, new_y)

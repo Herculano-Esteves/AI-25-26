@@ -117,5 +117,5 @@ def generate_random_request(nos: List[Node]) -> Request:
         start_node=start_node,
         end_node=end_node,
         passenger_capacity=random.randint(1, 7),
-        environmental_preference=True if random.randint(1,4) == 1 else False,
+        environmental_preference=True if random.randint(1, 4) == 1 else False,
     )

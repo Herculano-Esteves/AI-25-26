@@ -86,7 +86,7 @@ class Request:
         if not isinstance(other, Request):
             return NotImplemented
         return self.id == other.id
-    
+
     def __lt__(self, other):
         if not isinstance(other, Request):
             return NotImplemented
@@ -104,7 +104,7 @@ class Vehicle:
         max_km: float,
         remaining_km: float = 0,
         condition: VehicleCondition = VehicleCondition.AVAILABLE,
-        route_to_do: Optional[List[Node]] = None,
+        current_route: Optional[List[Node]] = None,
         request: Optional[Request] = None,
     ) -> None:
         self.id = id
@@ -115,26 +115,20 @@ class Vehicle:
         self.max_km = max_km
         self.remaining_km = remaining_km
         self.condition = condition
-        self.total_request_km: float = 0.0
 
         if self.remaining_km > self.max_km:
             self.remaining_km = self.max_km
 
-        self.route_to_do = route_to_do if route_to_do is not None else []
         self.request = request
+        self.current_route = current_route if current_route is not None else []
 
+        # This index points to the START node of the current segment
+        # Example: index 0 means moving from route[0] to route[1]
+        self.current_segment_index = 0
+        self.current_segment_progress_time: float = 0.0
+
+        # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position
-
-        # Animation / movement attributes
-        self.start_node: Optional[Node] = None
-        self.end_node: Optional[Node] = None
-
-        self.extimated_trip_time: float = (
-            0.0  # Total time in minutes for the current trip
-        )
-        self.time_passed_on_trip: float = (
-            0.0  # Total minutes passed since the start of the trip
-        )
 
     def __repr__(self) -> str:
         return (
