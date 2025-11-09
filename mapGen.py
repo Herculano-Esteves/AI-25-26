@@ -90,10 +90,12 @@ def create_vehicle_fleet(
     return veiculos
 
 
-def generate_requests(all_nodes: List[Node], num_requests: int) -> List[Request]:
+def generate_requests(
+    all_nodes: List[Node], num_requests: int, creation_time: float
+) -> List[Request]:
     requests = []
     for _ in range(num_requests):
-        requests.append(generate_random_request(all_nodes))
+        requests.append(generate_random_request(all_nodes, creation_time))
     print(f"Pedidos gerados: {len(requests)} requests iniciais criados.")
     return requests
 
@@ -108,7 +110,7 @@ def gas_ev_station_grant_existance(all_nodes):
         no_a_converter.gas_pumps = random.randint(2, 4)
 
 
-def generate_random_request(nos: List[Node]) -> Request:
+def generate_random_request(nos: List[Node], creation_time: float) -> Request:
     start_node = random.choice(nos)
     end_node = random.choice(nos)
     while start_node == end_node:
@@ -117,5 +119,6 @@ def generate_random_request(nos: List[Node]) -> Request:
         start_node=start_node,
         end_node=end_node,
         passenger_capacity=random.randint(1, 7),
+        creation_time=creation_time,
         environmental_preference=True if random.randint(1, 4) == 1 else False,
     )

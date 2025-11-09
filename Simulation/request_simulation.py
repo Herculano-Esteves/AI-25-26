@@ -67,8 +67,8 @@ em vez de tomar decisões "gulosas" (greedy) que poderiam ser subótimas a longo
 # Penalties in minutes:
 # Maybe make it infinite to make it impossible to use combustion
 ENVIRONMENTAL_PREFERENCE_PENALTY = 30.0
-# To maximize car capazity usage
 PER_UNUSED_PASSENGER_SEAT_PENALTY = 5.0
+REQUEST_AGE_PRIORITY_WEIGHT = 0.5
 
 
 def assign_pending_requests(simulator: "Simulator"):
@@ -106,8 +106,12 @@ def assign_pending_requests(simulator: "Simulator"):
                 simulator.map, vehicle.position_node, request.start_node
             )
             if path_info:
-                # The cost is the 'time'
                 _, time, _ = path_info
+
+                # How long this request has been waiting
+                wait_time_minutes = simulator.current_time - request.creation_time
+                age_bonus = wait_time_minutes * REQUEST_AGE_PRIORITY_WEIGHT
+                time += -age_bonus
 
                 if (
                     request.environmental_preference
@@ -239,4 +243,6 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
             f"(Total: {total_active_requests})"
         )
         for _ in range(num_to_gen):
-            simulator.requests.append(generate_random_request(list(simulator.map.nos)))
+            simulator.requests.append(
+                generate_random_request(list(simulator.map.nos), simulator.current_time)
+            )

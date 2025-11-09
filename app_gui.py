@@ -9,7 +9,7 @@ from PIL import Image, ImageTk
 
 class MapApplication:
     # GUI constants
-    TICK_RATE_MS = 40  # 25 FPS
+    TICK_RATE_MS = 1
 
     # Navigation constants
     ZOOM_IN_FACTOR = 1.2  # Zoom-in
@@ -96,6 +96,16 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=5)
 
+        # Style for the clock
+        ttk.Style().configure("Clock.TLabel", font=("Arial", 16, "bold"))
+        
+        self.clock_label = ttk.Label(
+            control_frame, 
+            text="Ano 0 - Dia 0 - 00:00", 
+            style="Clock.TLabel"
+        )
+        self.clock_label.pack(side=tk.RIGHT, padx=15)
+
         # PanedWindow
         self.main_paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.main_paned_window.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
@@ -126,7 +136,7 @@ class MapApplication:
         notebook.add(vehicle_tab, text="Frota (Veículos)")
 
         # Treeview for vehicle
-        cols = ("id", "status", "autonomy", "request", "motor", "capacidade")
+        cols = ("id", "status", "autonomy", "request", "motor", "capacidade", "avarias")
         self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
 
         self.vehicle_tree.heading("id", text="ID")
@@ -135,6 +145,7 @@ class MapApplication:
         self.vehicle_tree.heading("request", text="Pedido")
         self.vehicle_tree.heading("motor", text="Motor")
         self.vehicle_tree.heading("capacidade", text="Cap.")
+        self.vehicle_tree.heading("avarias", text="Avaria")
 
         self.vehicle_tree.column("id", width=40)
         self.vehicle_tree.column("status", width=120)
@@ -142,6 +153,7 @@ class MapApplication:
         self.vehicle_tree.column("request", width=60)
         self.vehicle_tree.column("motor", width=65)
         self.vehicle_tree.column("capacidade", width=40)
+        self.vehicle_tree.column("avarias", width=40)
 
         # Sscrollbar
         scrollbar = ttk.Scrollbar(
@@ -233,6 +245,7 @@ class MapApplication:
     def setup_new_map(self):
         print("A gerar novo map...")
         self.simulator.setup_new_map()
+        self._update_clock()
         self.reset_view()
 
     def reset_view(self):
@@ -293,6 +306,7 @@ class MapApplication:
         self.simulator.simulation_step()  # 1 simulation frame
         self.update_dynamic_visuals()  # Visual update
         self._update_stats_panel()  # Update stats panel
+        self._update_clock() # Update clock
         self.root.after(self.TICK_RATE_MS, self._simulation_gui_loop)  # Next frame
 
     def _update_stats_panel(self):
@@ -313,6 +327,7 @@ class MapApplication:
                 request_id,
                 v.motor.name.title(),
                 v.passenger_capacity,
+                v.times_borken,
             )
             self.vehicle_tree.insert("", tk.END, values=values)
 
@@ -343,6 +358,14 @@ class MapApplication:
 
         for r in sorted(lista):
             self.request_tree.insert("", tk.END, values=r)
+
+    def _update_clock(self):
+        current_day, current_hour, current_minute, current_year = self.simulator.get_current_time_of_day()
+        
+        # Format the string (e.g., "Dia 0 - 08:05")
+        time_str = f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
+        
+        self.clock_label.config(text=time_str)
 
     def update_dynamic_visuals(self):
         for v in self.simulator.vehicles:

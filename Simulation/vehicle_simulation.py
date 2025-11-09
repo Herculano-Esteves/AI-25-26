@@ -69,6 +69,7 @@ def _update_continuous_movement(
                 v.time_stopped = 0.0
                 v.current_route = []
                 v.current_segment_index = 0
+                v.times_borken += 1
 
                 if v.request:
                     print(f"[Vehicle] Pedido {v.request.id} foi cancelado.")

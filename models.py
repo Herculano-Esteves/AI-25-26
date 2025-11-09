@@ -66,6 +66,7 @@ class Request:
         start_node: Node,
         end_node: Node,
         passenger_capacity: int,
+        creation_time: float,
         priority: int = 1,  # (1=low, 5=high)
         environmental_preference: bool = False,  # Electric preference
     ) -> None:
@@ -74,6 +75,7 @@ class Request:
         self.start_node = start_node
         self.end_node = end_node
         self.passenger_capacity = passenger_capacity
+        self.creation_time = creation_time
         self.priority = priority
         self.environmental_preference = environmental_preference
 
@@ -116,6 +118,7 @@ class Vehicle:
         self.max_km = max_km
         self.remaining_km = remaining_km
         self.condition = condition
+        self.times_borken = 0
 
         if self.remaining_km > self.max_km:
             self.remaining_km = self.max_km
