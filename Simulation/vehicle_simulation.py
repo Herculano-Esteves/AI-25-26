@@ -230,6 +230,10 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
         v.current_segment_progress_time = 0.0
         v.condition = VehicleCondition.ON_WAY_TO_STATION
     else:
+        v.current_route = path
+        v.current_segment_index = 0
+        v.current_segment_progress_time = 0.0
+        v.condition = VehicleCondition.ON_WAY_TO_STATION
         print(f"[Vehicle] AVISO: {v.id} não consegue alcançar nenhuma estação de {v.motor.name} com {v.remaining_km:.1f}km de autonomia!")
 
 
