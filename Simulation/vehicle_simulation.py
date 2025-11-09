@@ -17,9 +17,7 @@ def manage_vehicle(simulator: "Simulator", v: Vehicle, time_to_advance: float):
         _manage_stopped_vehicle_state(simulator, v, time_to_advance)
 
 
-def _update_continuous_movement(
-    simulator: "Simulator", v: Vehicle, time_to_advance: float
-):
+def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_advance: float):
     # Updates the vehicle's position with its route
     time_remaining_in_tick = time_to_advance
 
@@ -47,9 +45,7 @@ def _update_continuous_movement(
             break
 
         segment_distance, segment_total_time = edge_info
-        time_needed_to_finish_segment = (
-            segment_total_time - v.current_segment_progress_time
-        )
+        time_needed_to_finish_segment = segment_total_time - v.current_segment_progress_time
 
         if time_remaining_in_tick < time_needed_to_finish_segment:
             # Vehicle will not finish the segment this tick
@@ -109,9 +105,7 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
             v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
 
             # Route to the client's destination
-            path_info = find_a_star_route(
-                simulator.map, v.position_node, v.request.end_node
-            )
+            path_info = find_a_star_route(simulator.map, v.position_node, v.request.end_node)
             if path_info:
                 path, time, distance = path_info
                 v.current_route = path if path else []
@@ -144,9 +138,7 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
         pass
 
 
-def _manage_stopped_vehicle_state(
-    simulator: "Simulator", v: Vehicle, time_to_advance: float
-):
+def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_advance: float):
 
     if v.condition == VehicleCondition.UNAVAILABLE:
         v.time_stopped += time_to_advance
@@ -166,9 +158,7 @@ def _manage_stopped_vehicle_state(
 
 
 # Depois adicionar procura inteligente de estações pois a velocidade de carregamento varia
-def _handle_refueling_at_station(
-    simulator: "Simulator", v: Vehicle, time_to_advance: float
-):
+def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_advance: float):
 
     v.time_stopped += time_to_advance
 

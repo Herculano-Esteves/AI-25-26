@@ -5,9 +5,7 @@ from models import Node, Vehicle, Request, Motor
 from typing import Tuple, List
 
 
-def generate_map(
-    width=10, height=10, gas_probability=0.1, ev_probability=0.1
-) -> CityGraph:
+def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -> CityGraph:
     map = CityGraph()
     created_nodes = {}
     all_nodes = list()
@@ -67,24 +65,18 @@ def _create_vehicle(
     )
 
 
-def create_vehicle_fleet(
-    all_nodes: List[Node], num_ev: int, num_gas: int
-) -> List[Vehicle]:
+def create_vehicle_fleet(all_nodes: List[Node], num_ev: int, num_gas: int) -> List[Vehicle]:
     veiculos = []
 
     # Generates eletric vehicles
     for i in range(num_ev):
         loc = random.choice(all_nodes)
-        veiculos.append(
-            _create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 50, 650)
-        )
+        veiculos.append(_create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 50, 650))
 
     # Generates combustion vehicles
     for i in range(num_gas):
         loc = random.choice(all_nodes)
-        veiculos.append(
-            _create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 50, 900)
-        )
+        veiculos.append(_create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 50, 900))
 
     print(f"Frota gerada: {len(veiculos)} veículos criados.")
     return veiculos

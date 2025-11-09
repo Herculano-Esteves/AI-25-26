@@ -19,7 +19,7 @@ class Simulator:
     MAP_WIDTH = 20
     MAP_HEIGHT = 20
     # Time constants
-    SIM_TIME_PER_TICK = 0.2  # Time in minutes per frame
+    SIM_TIME_PER_TICK = 1  # Time in minutes per frame
     MINUTES_PER_HOUR = 60
     HOURS_PER_DAY = 24
     MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY
@@ -46,13 +46,9 @@ class Simulator:
 
         all_nodes = list(self.map.nos)
 
-        self.vehicles = create_vehicle_fleet(
-            all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES
-        )
+        self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
 
-        self.requests = generate_requests(
-            all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time
-        )
+        self.requests = generate_requests(all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time)
 
         self.requests_to_pickup = []
         self.requests_to_dropoff = []

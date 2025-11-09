@@ -44,9 +44,7 @@ class MapApplication:
             self._load_sprites()
         except Exception as e:
             print(f"Erro fatal ao carregar imagens: {e}")
-            print(
-                "Verifique se a pasta 'images' existe e contém todos os PNGs necessários."
-            )
+            print("Verifique se a pasta 'images' existe e contém todos os PNGs necessários.")
             root.destroy()
             return
 
@@ -98,11 +96,9 @@ class MapApplication:
 
         # Style for the clock
         ttk.Style().configure("Clock.TLabel", font=("Arial", 16, "bold"))
-        
+
         self.clock_label = ttk.Label(
-            control_frame, 
-            text="Ano 0 - Dia 0 - 00:00", 
-            style="Clock.TLabel"
+            control_frame, text="Ano 0 - Dia 0 - 00:00", style="Clock.TLabel"
         )
         self.clock_label.pack(side=tk.RIGHT, padx=15)
 
@@ -156,9 +152,7 @@ class MapApplication:
         self.vehicle_tree.column("avarias", width=40)
 
         # Sscrollbar
-        scrollbar = ttk.Scrollbar(
-            vehicle_tab, orient=tk.VERTICAL, command=self.vehicle_tree.yview
-        )
+        scrollbar = ttk.Scrollbar(vehicle_tab, orient=tk.VERTICAL, command=self.vehicle_tree.yview)
         self.vehicle_tree.configure(yscrollcommand=scrollbar.set)
 
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
@@ -259,12 +253,8 @@ class MapApplication:
         usable_w = canvas_w - (2 * self.PADDING_RESET)
         usable_h = canvas_h - (2 * self.PADDING_RESET)
 
-        map_world_w = (
-            self.simulator.MAP_WIDTH - 1 if self.simulator.MAP_WIDTH > 1 else 1
-        )
-        map_world_h = (
-            self.simulator.MAP_HEIGHT - 1 if self.simulator.MAP_HEIGHT > 1 else 1
-        )
+        map_world_w = self.simulator.MAP_WIDTH - 1 if self.simulator.MAP_WIDTH > 1 else 1
+        map_world_h = self.simulator.MAP_HEIGHT - 1 if self.simulator.MAP_HEIGHT > 1 else 1
 
         scale_x = usable_w / map_world_w
         scale_y = usable_h / map_world_h
@@ -306,7 +296,7 @@ class MapApplication:
         self.simulator.simulation_step()  # 1 simulation frame
         self.update_dynamic_visuals()  # Visual update
         self._update_stats_panel()  # Update stats panel
-        self._update_clock() # Update clock
+        self._update_clock()  # Update clock
         self.root.after(self.TICK_RATE_MS, self._simulation_gui_loop)  # Next frame
 
     def _update_stats_panel(self):
@@ -360,11 +350,15 @@ class MapApplication:
             self.request_tree.insert("", tk.END, values=r)
 
     def _update_clock(self):
-        current_day, current_hour, current_minute, current_year = self.simulator.get_current_time_of_day()
-        
+        current_day, current_hour, current_minute, current_year = (
+            self.simulator.get_current_time_of_day()
+        )
+
         # Format the string (e.g., "Dia 0 - 08:05")
-        time_str = f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
-        
+        time_str = (
+            f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
+        )
+
         self.clock_label.config(text=time_str)
 
     def update_dynamic_visuals(self):
@@ -388,9 +382,7 @@ class MapApplication:
             return
         world_x_before, world_y_before = self._canvas_to_world(event.x, event.y)
         self.zoom *= zoom_factor
-        canvas_x_after, canvas_y_after = self._world_to_canvas(
-            world_x_before, world_y_before
-        )
+        canvas_x_after, canvas_y_after = self._world_to_canvas(world_x_before, world_y_before)
         self.offset_x += event.x - canvas_x_after
         self.offset_y += event.y - canvas_y_after
         self.redraw_full_canvas()
@@ -465,9 +457,7 @@ class MapApplication:
             x, y = self._world_to_canvas(*node.position)
 
             if node.gas_pumps > 0:
-                self.canvas.create_image(
-                    x, y, image=sprite_gas, tags=("no", "posto_gas")
-                )
+                self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
             elif node.energy_chargers > 0:
                 self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
             else:

@@ -46,9 +46,7 @@ class CityGraph:
             return []
         return list(self.adj[no].keys())
 
-    def connection_weight(
-        self, start_node: Node, end_node: Node
-    ) -> Optional[TipoAresta]:
+    def connection_weight(self, start_node: Node, end_node: Node) -> Optional[TipoAresta]:
         if start_node in self.adj and end_node in self.adj[start_node]:
             return self.adj[start_node][end_node]
         return None

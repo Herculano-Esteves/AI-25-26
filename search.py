@@ -89,14 +89,10 @@ def find_a_star_route(
                 # Also update the distance for this new fastest path
                 d_score[neighbor] = d_score[current] + edge_distance
 
-                f_score[neighbor] = tentative_g_score + _heuristic_distance(
-                    neighbor, end_node
-                )
+                f_score[neighbor] = tentative_g_score + _heuristic_distance(neighbor, end_node)
 
                 if neighbor not in open_set_map:
-                    heapq.heappush(
-                        open_set, (f_score[neighbor], hash(neighbor), neighbor)
-                    )
+                    heapq.heappush(open_set, (f_score[neighbor], hash(neighbor), neighbor))
                     open_set_map.add(neighbor)
     # No path found
     return None

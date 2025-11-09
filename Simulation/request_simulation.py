@@ -102,9 +102,7 @@ def assign_pending_requests(simulator: "Simulator"):
                 continue
 
             # Calculate cost (A* time)
-            path_info = find_a_star_route(
-                simulator.map, vehicle.position_node, request.start_node
-            )
+            path_info = find_a_star_route(simulator.map, vehicle.position_node, request.start_node)
             if path_info:
                 _, time, _ = path_info
 
@@ -113,10 +111,7 @@ def assign_pending_requests(simulator: "Simulator"):
                 age_bonus = wait_time_minutes * REQUEST_AGE_PRIORITY_WEIGHT
                 time += -age_bonus
 
-                if (
-                    request.environmental_preference
-                    and vehicle.motor == Motor.COMBUSTION
-                ):
+                if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
                     time += ENVIRONMENTAL_PREFERENCE_PENALTY
 
                 if request.passenger_capacity < vehicle.passenger_capacity:
@@ -153,9 +148,7 @@ def assign_pending_requests(simulator: "Simulator"):
         return
 
     # This selects only the rows and columns that are valid "cross product"
-    feasible_matrix = cost_matrix[
-        np.ix_(serviceable_vehicle_indices, serviceable_request_indices)
-    ]
+    feasible_matrix = cost_matrix[np.ix_(serviceable_vehicle_indices, serviceable_request_indices)]
 
     if feasible_matrix.size == 0:
         return
@@ -186,10 +179,7 @@ def assign_pending_requests(simulator: "Simulator"):
         assignments_to_make.append((vehicle, request))
 
     for vehicle, request in assignments_to_make:
-        if (
-            request in simulator.requests
-            and vehicle.condition == VehicleCondition.AVAILABLE
-        ):
+        if request in simulator.requests and vehicle.condition == VehicleCondition.AVAILABLE:
             assign_request_to_vehicle(simulator, request, vehicle)
 
 
@@ -239,8 +229,7 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
     if total_is_low or pending_is_low:
         num_to_gen = simulator.NUM_REQUESTS_TO_GENERATE
         print(
-            f"[Simulation] Criados {num_to_gen} novos pedidos. "
-            f"(Total: {total_active_requests})"
+            f"[Simulation] Criados {num_to_gen} novos pedidos. " f"(Total: {total_active_requests})"
         )
         for _ in range(num_to_gen):
             simulator.requests.append(
