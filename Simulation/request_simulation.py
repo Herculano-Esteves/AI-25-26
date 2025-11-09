@@ -64,8 +64,11 @@ Ao utilizar esta abordagem, o simulador garante que, em cada passo, a frota oper
 eficiência global, minimizando o tempo e a distância desperdiçados em deslocações sem passageiro,
 em vez de tomar decisões "gulosas" (greedy) que poderiam ser subótimas a longo prazo.
 """
-
-ENVIRONMENTAL_PREFERENCE_PENALTY = 15.0  # Penalty in minutes (maybe make it infinite to make it impossible to use combustion)
+# Penalties in minutes:
+# Maybe make it infinite to make it impossible to use combustion
+ENVIRONMENTAL_PREFERENCE_PENALTY = 30.0
+# To maximize car capazity usage
+PER_UNUSED_PASSENGER_SEAT_PENALTY = 5.0
 
 
 def assign_pending_requests(simulator: "Simulator"):
@@ -79,7 +82,7 @@ def assign_pending_requests(simulator: "Simulator"):
         if v.condition == VehicleCondition.AVAILABLE
         and v.remaining_km >= simulator.LOW_AUTONOMY_THRESHOLD
     ]
-    
+
     if not available_vehicles:
         return
 
@@ -111,6 +114,11 @@ def assign_pending_requests(simulator: "Simulator"):
                     and vehicle.motor == Motor.COMBUSTION
                 ):
                     time += ENVIRONMENTAL_PREFERENCE_PENALTY
+
+                if request.passenger_capacity < vehicle.passenger_capacity:
+                    time += PER_UNUSED_PASSENGER_SEAT_PENALTY * (
+                        vehicle.passenger_capacity - request.passenger_capacity
+                    )
 
                 cost_matrix[i, j] = time
             # cost_matrix remains 'inf' if no path found

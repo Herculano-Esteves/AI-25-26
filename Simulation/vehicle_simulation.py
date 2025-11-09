@@ -9,6 +9,7 @@ if TYPE_CHECKING:
 PENALTY_TIME = 30.0
 GAS_REFUEL_TIME_MINUTES = 5.0
 
+
 def manage_vehicle(simulator: "Simulator", v: Vehicle, time_to_advance: float):
     if v.current_route:
         _update_continuous_movement(simulator, v, time_to_advance)
@@ -68,7 +69,7 @@ def _update_continuous_movement(
                 v.time_stopped = 0.0
                 v.current_route = []
                 v.current_segment_index = 0
-                
+
                 if v.request:
                     print(f"[Vehicle] Pedido {v.request.id} foi cancelado.")
                     if v.request in simulator.requests_to_pickup:
@@ -142,8 +143,10 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
         pass
 
 
-def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_advance: float):
-    
+def _manage_stopped_vehicle_state(
+    simulator: "Simulator", v: Vehicle, time_to_advance: float
+):
+
     if v.condition == VehicleCondition.UNAVAILABLE:
         v.time_stopped += time_to_advance
 
@@ -162,21 +165,23 @@ def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_ad
 
 
 # Depois adicionar procura inteligente de estações pois a velocidade de carregamento varia
-def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_advance: float):
-    
+def _handle_refueling_at_station(
+    simulator: "Simulator", v: Vehicle, time_to_advance: float
+):
+
     v.time_stopped += time_to_advance
 
     if v.motor == Motor.ELECTRIC:
-        
+
         node = v.position_node
         rate_km_per_hour = node.energy_recharge_rate_kw
-        
+
         if rate_km_per_hour <= 0:
             rate_km_per_hour = 300.0
-            
+
         rate_km_per_minute = rate_km_per_hour / 60.0
         km_recharged_this_tick = time_to_advance * rate_km_per_minute
-        
+
         v.remaining_km += km_recharged_this_tick
 
         if v.remaining_km >= v.max_km:
@@ -185,7 +190,7 @@ def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_adv
             v.time_stopped = 0.0
             print(f"[Vehicle] {v.id} (EV) carregamento completo.")
 
-    else:        
+    else:
         if v.time_stopped >= GAS_REFUEL_TIME_MINUTES:
             v.remaining_km = v.max_km
             v.condition = VehicleCondition.AVAILABLE
@@ -194,37 +199,41 @@ def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_adv
 
 
 def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
-    
+
     target_nodes = []
     if v.motor == Motor.ELECTRIC:
         target_nodes = [n for n in simulator.map.nos if n.energy_chargers > 0]
     else:
         target_nodes = [n for n in simulator.map.nos if n.gas_pumps > 0]
-    
+
     if not target_nodes:
         print(f"[Vehicle] AVISO: {v.id} não encontrou estações de {v.motor.name}!")
         return
 
     best_station = None
     best_path_info = None
-    min_time = float('inf')
+    min_time = float("inf")
 
     for station in target_nodes:
         path_info = find_a_star_route(simulator.map, v.position_node, station)
-        
+
         if path_info:
             path, time, distance = path_info
-            
-            if v.remaining_km > distance and time < min_time: # neste tempo adicionar a tempo de recarremanento
+
+            if (
+                v.remaining_km > distance and time < min_time
+            ):  # neste tempo adicionar a tempo de recarremanento
                 min_time = time
                 best_station = station
                 best_path_info = path_info
-    
+
     if best_path_info:
         path, time, distance = best_path_info
         if best_station:
-            print(f"[Vehicle] {v.id} (Autonomia: {v.remaining_km:.1f}km) a caminho da estação {best_station.position}. Dist: {distance:.1f}km")
-        
+            print(
+                f"[Vehicle] {v.id} (Autonomia: {v.remaining_km:.1f}km) a caminho da estação {best_station.position}. Dist: {distance:.1f}km"
+            )
+
         v.current_route = path
         v.current_segment_index = 0
         v.current_segment_progress_time = 0.0
@@ -234,7 +243,9 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
         v.current_segment_index = 0
         v.current_segment_progress_time = 0.0
         v.condition = VehicleCondition.ON_WAY_TO_STATION
-        print(f"[Vehicle] AVISO: {v.id} não consegue alcançar nenhuma estação de {v.motor.name} com {v.remaining_km:.1f}km de autonomia!")
+        print(
+            f"[Vehicle] AVISO: {v.id} não consegue alcançar nenhuma estação de {v.motor.name} com {v.remaining_km:.1f}km de autonomia!"
+        )
 
 
 def _update_gui_coordinates(

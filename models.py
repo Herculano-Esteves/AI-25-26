@@ -128,7 +128,7 @@ class Vehicle:
         self.current_segment_index = 0
         self.current_segment_progress_time: float = 0.0
 
-        self.time_stopped: float = 0.0 # Time penalty
+        self.time_stopped: float = 0.0  # Time penalty
 
         # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position
