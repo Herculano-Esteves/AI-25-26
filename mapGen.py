@@ -1,7 +1,8 @@
 import networkx as nx
 import random
 from graph import CityGraph
-from models import Node, Vehicle, Request, Motor
+from models.node import Node
+from models.vehicle import Vehicle, Request, Motor
 from typing import Tuple, List
 from search import find_a_star_route
 

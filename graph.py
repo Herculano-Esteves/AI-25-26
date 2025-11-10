@@ -1,5 +1,5 @@
 from typing import Tuple, Set, Dict, List, Optional
-from models import Node
+from models.node import Node
 
 # (Distance Km, time minutes)
 TipoAresta = Tuple[float, float]

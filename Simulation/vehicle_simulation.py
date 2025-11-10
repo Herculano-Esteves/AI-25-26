@@ -1,5 +1,6 @@
 from search import find_a_star_route
-from models import VehicleCondition, Vehicle, Node, Motor
+from models.vehicle import Vehicle, VehicleCondition, Motor
+from models.node import Node
 from typing import TYPE_CHECKING
 
 if TYPE_CHECKING:

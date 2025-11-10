@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from models import Motor, VehicleCondition
+from models.vehicle import Motor
 from Simulation.simulator import Simulator
 
 import os

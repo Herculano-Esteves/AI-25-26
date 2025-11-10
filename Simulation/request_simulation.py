@@ -1,6 +1,7 @@
 from typing import List, TYPE_CHECKING
-from models import VehicleCondition, Vehicle, Request, Node, Motor
-from search import find_a_star_route, _heuristic_distance
+from models.request import Request
+from models.vehicle import Vehicle, VehicleCondition, Motor
+from search import find_a_star_route
 from mapGen import generate_random_request
 
 import numpy as np

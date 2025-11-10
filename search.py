@@ -2,7 +2,7 @@ import heapq
 import math
 from typing import List, Optional, Dict, Set, Tuple
 
-from models import Node
+from models.node import Node
 from graph import CityGraph
 
 

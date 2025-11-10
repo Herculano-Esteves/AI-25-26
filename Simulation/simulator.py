@@ -4,7 +4,9 @@ from mapGen import (
     create_vehicle_fleet,
     generate_requests,
 )
-from models import Vehicle, Request, Node, SimulationStats, VehicleCondition
+from models.vehicle import Vehicle, VehicleCondition
+from models.request import Request
+from models.simulationStats import SimulationStats
 from typing import List
 
 from Simulation.vehicle_simulation import manage_vehicle
