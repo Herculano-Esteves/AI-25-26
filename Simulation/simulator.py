@@ -7,6 +7,7 @@ from models.vehicle import Vehicle, VehicleCondition
 from models.request import Request
 from models.simulationStats import SimulationStats
 from typing import List
+import random
 
 from Simulation.vehicle_simulation import manage_vehicle
 from Simulation.request_simulation import (
@@ -30,6 +31,8 @@ class Simulator:
     NUM_GAS_VEHICLES = 3
     NUM_INITIAL_REQUESTS = 10
     NUM_REQUESTS_TO_GENERATE = 4
+    STATION_FAILURE_PROB_PER_TICK = 0.0005  # Prob of a station to fail per tick
+    STATION_DOWNTIME_MINUTES = 120.0
 
     def __init__(self):
         self.vehicles: List[Vehicle] = []
@@ -70,6 +73,8 @@ class Simulator:
         for v in self.vehicles:
             manage_vehicle(self, v, time_to_advance)
 
+        self._update_station_failures(time_to_advance)
+
         generate_new_requests_if_needed(self)
         assign_pending_requests(self)
 
@@ -97,6 +102,21 @@ class Simulator:
         self.stats.total_operational_cost += self.stats.step_operational_cost
         self.stats.total_kms_driven_with_passenger += self.stats.step_kms_driven_with_passenger
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
+
+    def _update_station_failures(self, time_to_advance: float):
+        for node in self.map.nos:
+            if node.gas_pumps > 0 or node.energy_chargers > 0:
+                if node.is_available:
+                    if random.random() < self.STATION_FAILURE_PROB_PER_TICK:
+                        node.is_available = False
+                        node.time_down = 0.0
+                        print(f"[Station Failure] Estação em {node.position} falhou!")
+                else:
+                    node.time_down += time_to_advance
+                    if node.time_down >= self.STATION_DOWNTIME_MINUTES:
+                        node.is_available = True
+                        node.time_down = 0.0
+                        print(f"[Station Repair] Estação em {node.position} está operacional.")
 
     def get_current_time_of_day(self) -> tuple[int, int, int, int]:
         # return day, hour, minute, year

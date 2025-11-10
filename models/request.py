@@ -12,6 +12,7 @@ class Request:
         passenger_capacity: int,
         creation_time: float,
         price: float,
+        priority: int = 1,  # (1=low, 5=high)
         environmental_preference: bool = False,  # Electric preference
         path: Optional[List[Node]] = None,
         path_distance: float = 0.0,
@@ -24,6 +25,7 @@ class Request:
         self.passenger_capacity = passenger_capacity
         self.creation_time = creation_time
         self.price = price
+        self.priority = priority
         self.environmental_preference = environmental_preference
         self.path = path
         self.path_distance = path_distance

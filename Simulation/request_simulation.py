@@ -66,10 +66,12 @@ eficiência global, minimizando o tempo e a distância desperdiçados em desloca
 em vez de tomar decisões "gulosas" (greedy) que poderiam ser sub-ótimas a longo prazo.
 """
 # Penalties in minutes:
-# Maybe make it infinite to make it impossible to use combustion
-ENVIRONMENTAL_PREFERENCE_PENALTY = 30.0
+ENVIRONMENTAL_PREFERENCE_PENALTY = (
+    30.0  # Maybe make it infinite to make it impossible to use combustion
+)
 PER_UNUSED_PASSENGER_SEAT_PENALTY = 5.0
 REQUEST_AGE_PRIORITY_WEIGHT = 0.5
+REQUEST_PRIORITY_WEIGHT = 10.0  # Priority weight
 
 
 def assign_pending_requests(simulator: "Simulator"):
@@ -107,7 +109,7 @@ def assign_pending_requests(simulator: "Simulator"):
             if path_info:
                 _, time, dist_to_client = path_info
 
-                # Check vehicle remaining km
+                # Check if there is enough remaining km
                 dist_of_trip = request.path_distance
                 total_distance_needed = dist_to_client + dist_of_trip
 
@@ -118,7 +120,9 @@ def assign_pending_requests(simulator: "Simulator"):
                 # How long this request has been waiting
                 wait_time_minutes = simulator.current_time - request.creation_time
                 age_bonus = wait_time_minutes * REQUEST_AGE_PRIORITY_WEIGHT
-                time += -age_bonus
+
+                priority_bonus = (request.priority - 1) * REQUEST_PRIORITY_WEIGHT
+                time += -age_bonus - priority_bonus
 
                 if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
                     time += ENVIRONMENTAL_PREFERENCE_PENALTY
@@ -156,7 +160,7 @@ def assign_pending_requests(simulator: "Simulator"):
     if not serviceable_vehicles:
         return
 
-    # This selects only the rows and columns that are valid "cross product"
+    # This selects only the valid rows and columns
     feasible_matrix = cost_matrix[np.ix_(serviceable_vehicle_indices, serviceable_request_indices)]
 
     if feasible_matrix.size == 0:

@@ -123,12 +123,16 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
     if result:
         path, time, distance = result
         price = BASE_FARE + (distance * PRICE_PER_KM)
+
+    req_priority = random.randint(1, 5)
+
     return Request(
         start_node=start_node,
         end_node=end_node,
         passenger_capacity=random.randint(1, 7),
         creation_time=creation_time,
         price=price,
+        priority=req_priority,
         environmental_preference=True if random.randint(1, 4) == 1 else False,
         path=path,
         path_distance=distance,

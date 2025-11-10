@@ -134,6 +134,7 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
                 v.current_segment_index = 0
                 v.current_segment_progress_time = 0.0
             else:
+                # Error
                 print(
                     f"[Vehicle] ERROR: Caminho não encontrado no pedido {v.request.id if v.request else 'N/A'}."
                 )
@@ -233,9 +234,9 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
 
     target_nodes = []
     if v.motor == Motor.ELECTRIC:
-        target_nodes = [n for n in simulator.map.nos if n.energy_chargers > 0]
+        target_nodes = [n for n in simulator.map.nos if n.energy_chargers > 0 and n.is_available]
     else:
-        target_nodes = [n for n in simulator.map.nos if n.gas_pumps > 0]
+        target_nodes = [n for n in simulator.map.nos if n.gas_pumps > 0 and n.is_available]
 
     if not target_nodes:
         print(f"[Vehicle] AVISO: {v.id} não encontrou estações de {v.motor.name}!")
@@ -251,9 +252,7 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
         if path_info:
             path, time, distance = path_info
 
-            if (
-                v.remaining_km > distance and time < min_time
-            ):  # neste tempo adicionar a tempo de recarremanento
+            if v.remaining_km > distance and time < min_time:
                 min_time = time
                 best_station = station
                 best_path_info = path_info

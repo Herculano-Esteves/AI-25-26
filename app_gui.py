@@ -706,6 +706,30 @@ class MapApplication:
                     tags=("no", "no_normal"),
                 )
 
+        # Draws a cross on unavailable stations
+        overlay_radius = self.SPRITE_SIZE_PX / 2.5
+        for node in self.simulator.map.nos:
+            if (node.gas_pumps > 0 or node.energy_chargers > 0) and not node.is_available:
+                x, y = self._world_to_canvas(*node.position)
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y - overlay_radius,
+                    x + overlay_radius,
+                    y + overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y + overlay_radius,
+                    x + overlay_radius,
+                    y - overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
+
     def _draw_requests(self):
         self.canvas.delete("request")
         sprite_request_wait = self.sprite_cache["request_wait"]

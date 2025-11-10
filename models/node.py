@@ -8,11 +8,15 @@ class Node:
         gas_pumps: int = 0,
         energy_chargers: int = 0,
         energy_recharge_rate_km_h: int = 0,
+        is_available: bool = True,
+        time_down: float = 0.0,
     ) -> None:
         self.position = position
         self.gas_pumps = gas_pumps
         self.energy_chargers = energy_chargers
         self.energy_recharge_rate_kw = energy_recharge_rate_km_h
+        self.is_available = is_available
+        self.time_down = time_down
 
     def __str__(self) -> str:
         base = f"Node at {self.position}"
