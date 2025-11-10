@@ -45,14 +45,28 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
             break
 
         segment_distance, segment_total_time = edge_info
+
+        # Distance
+        speed_km_per_min = 0.0
+        if segment_total_time > 0:
+            speed_km_per_min = segment_distance / segment_total_time
+
         time_needed_to_finish_segment = segment_total_time - v.current_segment_progress_time
 
         if time_remaining_in_tick < time_needed_to_finish_segment:
+            # Save distance on stats
+            dist_this_tick = speed_km_per_min * time_remaining_in_tick
+            _record_vehicle_movement_stats(simulator, v, dist_this_tick)
+
             # Vehicle will not finish the segment this tick
             v.current_segment_progress_time += time_remaining_in_tick
             _update_gui_coordinates(v, start_node, end_node, segment_total_time)
             time_remaining_in_tick = 0.0
         else:
+            # Save distance on stats
+            dist_this_tick = speed_km_per_min * time_needed_to_finish_segment
+            _record_vehicle_movement_stats(simulator, v, dist_this_tick)
+
             # Vehicle will finish the segment this tick
             time_remaining_in_tick -= time_needed_to_finish_segment
 
@@ -66,6 +80,7 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
                 v.current_route = []
                 v.current_segment_index = 0
                 v.times_borken += 1
+                simulator.stats.total_requests_failed += 1
 
                 if v.request:
                     print(f"[Vehicle] Pedido {v.request.id} foi cancelado.")
@@ -100,6 +115,15 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
                 f"[Vehicle] Veiculo {v.id} chegou ao ponto de recolha de {v.request.id} na posição {v.position_node.position}."
             )
 
+            # Stats waiting time
+            stats = simulator.stats
+            wait_time = simulator.current_time - v.request.creation_time
+
+            stats.total_requests_picked_up += 1
+            stats.total_wait_time_for_pickup += wait_time
+            stats.min_wait_time = min(stats.min_wait_time, wait_time)
+            stats.max_wait_time = max(stats.max_wait_time, wait_time)
+
             simulator.requests_to_pickup.remove(v.request)
             simulator.requests_to_dropoff.append(v.request)
             v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
@@ -124,6 +148,21 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
             print(
                 f"[Vehicle] {v.id} viagem completa do pedido {v.request.id} na posição {v.position_node.position}."
             )
+
+            # Stats of the trip
+            stats = simulator.stats
+            stats.total_requests_completed += 1
+
+            # Real time
+            total_life_time = simulator.current_time - v.request.creation_time
+            stats.total_time_for_completed_requests += total_life_time
+            stats.min_total_trip_time = min(stats.min_total_trip_time, total_life_time)
+            stats.max_total_trip_time = max(stats.max_total_trip_time, total_life_time)
+
+            # Revenue
+            stats.total_revenue_generated += v.request.price
+            stats.step_revenue_generated += v.request.price
+
             simulator.requests_to_dropoff.remove(v.request)
         v.condition = VehicleCondition.AVAILABLE
         v.request = None
@@ -254,3 +293,18 @@ def _update_gui_coordinates(
     new_x = x1 + (x2 - x1) * progress
     new_y = y1 + (y2 - y1) * progress
     v.map_coordinates = (new_x, new_y)
+
+
+def _record_vehicle_movement_stats(simulator: "Simulator", v: Vehicle, distance_this_tick: float):
+    stats = simulator.stats
+    cost = distance_this_tick * v.price_per_km
+    stats.step_operational_cost += cost
+
+    # Total km
+    stats.step_kms_driven += distance_this_tick
+
+    if v.condition == VehicleCondition.ON_TRIP_WITH_CLIENT:
+        stats.step_kms_driven_with_passenger += distance_this_tick
+
+    elif v.condition in [VehicleCondition.ON_WAY_TO_CLIENT, VehicleCondition.ON_WAY_TO_STATION]:
+        stats.step_kms_driven_empty += distance_this_tick

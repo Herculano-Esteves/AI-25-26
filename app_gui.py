@@ -189,6 +189,187 @@ class MapApplication:
         req_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.request_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
+        # Statics bar
+        stats_tab = ttk.Frame(notebook)
+        notebook.add(stats_tab, text="Métricas")
+
+        stats_label_frame = ttk.Frame(stats_tab)
+        stats_label_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
+
+        self.stats_labels = {}
+        row_idx = 0
+
+        # Frame stats
+        self.stats_labels["step_header"] = ttk.Label(
+            stats_label_frame, text="Snapshot da Iteração", font=("Arial", 12, "bold")
+        )
+        self.stats_labels["step_header"].grid(
+            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(0, 5)
+        )
+        row_idx += 1
+
+        # Search cost
+        self.stats_labels["step_assign_cost_label"] = ttk.Label(
+            stats_label_frame, text="Custo Procura (Atrib.):"
+        )
+        self.stats_labels["step_assign_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_assign_cost"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["step_assign_cost"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Operacional cost
+        self.stats_labels["step_cost_label"] = ttk.Label(
+            stats_label_frame, text="Custo Op. (Iteração):"
+        )
+        self.stats_labels["step_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_cost"] = ttk.Label(stats_label_frame, text="€0.00")
+        self.stats_labels["step_cost"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Profit
+        self.stats_labels["step_revenue_label"] = ttk.Label(
+            stats_label_frame, text="Receita (Iteração):"
+        )
+        self.stats_labels["step_revenue_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_revenue"] = ttk.Label(stats_label_frame, text="€0.00")
+        self.stats_labels["step_revenue"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Pending Requests
+        self.stats_labels["step_pending_req_label"] = ttk.Label(
+            stats_label_frame, text="Pedidos Pendentes:"
+        )
+        self.stats_labels["step_pending_req_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_pending_req"] = ttk.Label(stats_label_frame, text="0")
+        self.stats_labels["step_pending_req"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Avaliable vehicles
+        self.stats_labels["step_vehicles_avail_label"] = ttk.Label(
+            stats_label_frame, text="Veículos Livres:"
+        )
+        self.stats_labels["step_vehicles_avail_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_vehicles_avail"] = ttk.Label(stats_label_frame, text="0")
+        self.stats_labels["step_vehicles_avail"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Unavailabe Vehicles
+        self.stats_labels["step_vehicles_busy_label"] = ttk.Label(
+            stats_label_frame, text="Veículos Ocupados:"
+        )
+        self.stats_labels["step_vehicles_busy_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["step_vehicles_busy"] = ttk.Label(stats_label_frame, text="0")
+        self.stats_labels["step_vehicles_busy"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Total stats
+        self.stats_labels["total_header"] = ttk.Label(
+            stats_label_frame, text="Desempenho Acumulado", font=("Arial", 12, "bold")
+        )
+        self.stats_labels["total_header"].grid(
+            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(15, 5)
+        )
+        row_idx += 1
+
+        # Money related
+        self.stats_labels["total_revenue_label"] = ttk.Label(
+            stats_label_frame, text="Receita Total:"
+        )
+        self.stats_labels["total_revenue_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["total_revenue"] = ttk.Label(stats_label_frame, text="€0.00")
+        self.stats_labels["total_revenue"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["total_cost_label"] = ttk.Label(
+            stats_label_frame, text="Custo Op. Total:"
+        )
+        self.stats_labels["total_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["total_cost"] = ttk.Label(stats_label_frame, text="€0.00")
+        self.stats_labels["total_cost"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["total_profit_label"] = ttk.Label(stats_label_frame, text="Lucro Total:")
+        self.stats_labels["total_profit_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["total_profit"] = ttk.Label(stats_label_frame, text="€0.00")
+        self.stats_labels["total_profit"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Requests
+        self.stats_labels["total_requests_label"] = ttk.Label(
+            stats_label_frame, text="Pedidos (Comp./Falh.):"
+        )
+        self.stats_labels["total_requests_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["total_requests"] = ttk.Label(stats_label_frame, text="0 / 0")
+        self.stats_labels["total_requests"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Kms
+        self.stats_labels["kms_empty_label"] = ttk.Label(stats_label_frame, text="Kms Vazios (%):")
+        self.stats_labels["kms_empty_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["kms_empty"] = ttk.Label(stats_label_frame, text="0.0% (0 km)")
+        self.stats_labels["kms_empty"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Wait time
+        self.stats_labels["wait_time_header"] = ttk.Label(
+            stats_label_frame,
+            text="Tempo de Espera (Criação -> Recolha)",
+            font=("Arial", 10, "bold"),
+        )
+        self.stats_labels["wait_time_header"].grid(
+            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
+        )
+        row_idx += 1
+
+        self.stats_labels["avg_wait_time_label"] = ttk.Label(
+            stats_label_frame, text="Espera Média:"
+        )
+        self.stats_labels["avg_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["avg_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["avg_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["min_wait_time_label"] = ttk.Label(stats_label_frame, text="Espera Mín:")
+        self.stats_labels["min_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["min_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["min_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["max_wait_time_label"] = ttk.Label(stats_label_frame, text="Espera Máx:")
+        self.stats_labels["max_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["max_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["max_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        # Trip Time
+        self.stats_labels["trip_time_header"] = ttk.Label(
+            stats_label_frame,
+            text="Tempo de Pedido (Criação -> Entrega)",
+            font=("Arial", 10, "bold"),
+        )
+        self.stats_labels["trip_time_header"].grid(
+            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
+        )
+        row_idx += 1
+
+        self.stats_labels["avg_time_label"] = ttk.Label(stats_label_frame, text="Pedido Médio:")
+        self.stats_labels["avg_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["avg_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["avg_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["min_trip_time_label"] = ttk.Label(stats_label_frame, text="Pedido Mín:")
+        self.stats_labels["min_trip_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["min_trip_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["min_trip_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
+        self.stats_labels["max_trip_time_label"] = ttk.Label(stats_label_frame, text="Pedido Máx:")
+        self.stats_labels["max_trip_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
+        self.stats_labels["max_trip_time"] = ttk.Label(stats_label_frame, text="0.0 min")
+        self.stats_labels["max_trip_time"].grid(row=row_idx, column=1, sticky=tk.W)
+        row_idx += 1
+
         # Style
         ttk.Style().configure("Stats.TLabel", font=("Arial", 12))
         ttk.Style().configure("StatsVal.TLabel", font=("Arial", 12, "bold"))
@@ -348,6 +529,65 @@ class MapApplication:
 
         for r in sorted(lista):
             self.request_tree.insert("", tk.END, values=r)
+
+        self._update_stats_tab()
+
+    def _update_stats_tab(self):
+        stats = self.simulator.stats
+
+        # Frame stats
+        self.stats_labels["step_assign_cost"].config(text=f"{stats.step_assignment_cost:,.1f} min")
+        self.stats_labels["step_cost"].config(text=f"€{stats.step_operational_cost:,.2f}")
+        self.stats_labels["step_revenue"].config(text=f"€{stats.step_revenue_generated:,.2f}")
+        self.stats_labels["step_pending_req"].config(text=f"{stats.step_pending_requests}")
+        self.stats_labels["step_vehicles_avail"].config(text=f"{stats.step_vehicles_available}")
+
+        # Unavailabe Vehicles
+        busy_vehicles = (
+            stats.step_vehicles_on_trip
+            + stats.step_vehicles_charging
+            + stats.step_vehicles_unavailable
+        )
+        self.stats_labels["step_vehicles_busy"].config(text=f"{busy_vehicles}")
+
+        # Total stats
+
+        # Money related
+        self.stats_labels["total_revenue"].config(text=f"€{stats.total_revenue_generated:,.2f}")
+        self.stats_labels["total_cost"].config(text=f"€{stats.total_operational_cost:,.2f}")
+        total_profit = stats.total_revenue_generated - stats.total_operational_cost
+        self.stats_labels["total_profit"].config(text=f"€{total_profit:,.2f}")
+
+        # Requests
+        req_str = f"{stats.total_requests_completed} / {stats.total_requests_failed}"
+        self.stats_labels["total_requests"].config(text=req_str)
+
+        # % km empty
+        empty_ratio = 0.0
+        if stats.total_kms_driven > 0:
+            empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven) * 100
+        empty_str = f"{empty_ratio:,.1f}% ({stats.total_kms_driven_empty:,.0f} km)"
+        self.stats_labels["kms_empty"].config(text=empty_str)
+
+        # Wait time for pick up
+        avg_wait_time = 0.0
+        if stats.total_requests_picked_up > 0:
+            avg_wait_time = stats.total_wait_time_for_pickup / stats.total_requests_picked_up
+        self.stats_labels["avg_wait_time"].config(text=f"{avg_wait_time:,.1f} min")
+
+        min_wait = 0.0 if stats.min_wait_time == float("inf") else stats.min_wait_time
+        self.stats_labels["min_wait_time"].config(text=f"{min_wait:,.1f} min")
+        self.stats_labels["max_wait_time"].config(text=f"{stats.max_wait_time:,.1f} min")
+
+        # Total request time
+        avg_time = 0.0
+        if stats.total_requests_completed > 0:
+            avg_time = stats.total_time_for_completed_requests / stats.total_requests_completed
+        self.stats_labels["avg_time"].config(text=f"{avg_time:,.1f} min")
+
+        min_trip = 0.0 if stats.min_total_trip_time == float("inf") else stats.min_total_trip_time
+        self.stats_labels["min_trip_time"].config(text=f"{min_trip:,.1f} min")
+        self.stats_labels["max_trip_time"].config(text=f"{stats.max_total_trip_time:,.1f} min")
 
     def _update_clock(self):
         current_day, current_hour, current_minute, current_year = (

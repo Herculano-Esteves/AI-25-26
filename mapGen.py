@@ -3,6 +3,11 @@ import random
 from graph import CityGraph
 from models import Node, Vehicle, Request, Motor
 from typing import Tuple, List
+from search import find_a_star_route
+
+# €
+BASE_FARE = 2.50
+PRICE_PER_KM = 0.60
 
 
 def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -> CityGraph:
@@ -83,11 +88,12 @@ def create_vehicle_fleet(all_nodes: List[Node], num_ev: int, num_gas: int) -> Li
 
 
 def generate_requests(
-    all_nodes: List[Node], num_requests: int, creation_time: float
+    map: CityGraph, all_nodes: List[Node], num_requests: int, creation_time: float
 ) -> List[Request]:
+
     requests = []
     for _ in range(num_requests):
-        requests.append(generate_random_request(all_nodes, creation_time))
+        requests.append(generate_random_request(map, all_nodes, creation_time))
     print(f"Pedidos gerados: {len(requests)} requests iniciais criados.")
     return requests
 
@@ -102,15 +108,24 @@ def gas_ev_station_grant_existance(all_nodes):
         no_a_converter.gas_pumps = random.randint(2, 4)
 
 
-def generate_random_request(nos: List[Node], creation_time: float) -> Request:
+def generate_random_request(map: CityGraph, nos: List[Node], creation_time: float) -> Request:
     start_node = random.choice(nos)
     end_node = random.choice(nos)
     while start_node == end_node:
         end_node = random.choice(nos)
+
+    result = find_a_star_route(map, start_node, end_node)
+    if result:
+        path, time, distance = result
+        price = BASE_FARE + (distance * PRICE_PER_KM)
+    else:
+        price = 0
+
     return Request(
         start_node=start_node,
         end_node=end_node,
         passenger_capacity=random.randint(1, 7),
         creation_time=creation_time,
+        price=price,
         environmental_preference=True if random.randint(1, 4) == 1 else False,
     )

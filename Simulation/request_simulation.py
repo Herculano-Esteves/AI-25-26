@@ -233,5 +233,7 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
         )
         for _ in range(num_to_gen):
             simulator.requests.append(
-                generate_random_request(list(simulator.map.nos), simulator.current_time)
+                generate_random_request(
+                    simulator.map, list(simulator.map.nos), simulator.current_time
+                )
             )
