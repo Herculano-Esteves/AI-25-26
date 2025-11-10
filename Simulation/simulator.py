@@ -1,6 +1,5 @@
 from mapGen import (
     generate_map,
-    generate_random_request,
     create_vehicle_fleet,
     generate_requests,
 )
@@ -51,6 +50,8 @@ class Simulator:
 
         self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
 
+        self.current_time = 0.0
+
         self.requests = generate_requests(
             self.map, all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time
         )
@@ -58,7 +59,6 @@ class Simulator:
         self.requests_to_pickup = []
         self.requests_to_dropoff = []
 
-        self.current_time = 0.0
         self.stats = SimulationStats()
 
     def simulation_step(self):
@@ -95,7 +95,6 @@ class Simulator:
         # Total values
         self.stats.total_kms_driven += self.stats.step_kms_driven
         self.stats.total_operational_cost += self.stats.step_operational_cost
-        self.stats.total_revenue_generated += self.stats.step_revenue_generated
         self.stats.total_kms_driven_with_passenger += self.stats.step_kms_driven_with_passenger
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
 

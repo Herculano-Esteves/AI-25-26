@@ -20,13 +20,8 @@ class MapApplication:
     BG_COLOR = "#2c2c2c"
     EDGE_COLOR = "#4a4a4a"
     NODE_COLOR = "lightblue"
-    GAS_COLOR = "orange"
-    EV_COLOR = "limegreen"
-    REQUEST_COLOR = "deep sky blue"
     REQUEST_ACCEPTED_COLOR = "yellow"
     REQUEST_DESTINATION_COLOR = "magenta"
-    VEHICLE_EV_COLOR = "green"
-    VEHICLE_GAS_COLOR = "red"
     DEBUG_TEXT_COLOR = "yellow"
 
     # Drawing constants

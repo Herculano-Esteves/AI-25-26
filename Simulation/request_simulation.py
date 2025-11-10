@@ -63,7 +63,7 @@ o pedido da lista de pendentes para a lista de recolha (requests_to_pickup).
 
 Ao utilizar esta abordagem, o simulador garante que, em cada passo, a frota opera com a máxima
 eficiência global, minimizando o tempo e a distância desperdiçados em deslocações sem passageiro,
-em vez de tomar decisões "gulosas" (greedy) que poderiam ser subótimas a longo prazo.
+em vez de tomar decisões "gulosas" (greedy) que poderiam ser sub-ótimas a longo prazo.
 """
 # Penalties in minutes:
 # Maybe make it infinite to make it impossible to use combustion
@@ -105,7 +105,15 @@ def assign_pending_requests(simulator: "Simulator"):
             # Calculate cost (A* time)
             path_info = find_a_star_route(simulator.map, vehicle.position_node, request.start_node)
             if path_info:
-                _, time, _ = path_info
+                _, time, dist_to_client = path_info
+
+                # Check vehicle remaining km
+                dist_of_trip = request.path_distance
+                total_distance_needed = dist_to_client + dist_of_trip
+
+                if vehicle.remaining_km < total_distance_needed:
+                    cost_matrix[i, j] = float("inf")
+                    continue
 
                 # How long this request has been waiting
                 wait_time_minutes = simulator.current_time - request.creation_time
@@ -160,7 +168,12 @@ def assign_pending_requests(simulator: "Simulator"):
 
     # Replace inf for a huge number (biggest number * row * col)
     solver_matrix = np.copy(feasible_matrix)
-    finite_max = np.max(solver_matrix[np.isfinite(solver_matrix)])
+    finite_max_array = solver_matrix[np.isfinite(solver_matrix)]
+
+    if finite_max_array.size == 0:
+        return
+
+    finite_max = np.max(finite_max_array)
     num_rows, num_cols = solver_matrix.shape
     biggest_cost = (finite_max * max(num_rows, num_cols)) + 1
     solver_matrix[np.isinf(solver_matrix)] = biggest_cost

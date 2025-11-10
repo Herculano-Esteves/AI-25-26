@@ -2,8 +2,9 @@ import networkx as nx
 import random
 from graph import CityGraph
 from models.node import Node
-from models.vehicle import Vehicle, Request, Motor
-from typing import Tuple, List
+from models.vehicle import Vehicle, Motor
+from models.request import Request
+from typing import List
 from search import find_a_star_route
 
 # €
@@ -115,13 +116,13 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
     while start_node == end_node:
         end_node = random.choice(nos)
 
+    price = 0.0
+    path, time, distance = None, 0.0, 0.0
+
     result = find_a_star_route(map, start_node, end_node)
     if result:
         path, time, distance = result
         price = BASE_FARE + (distance * PRICE_PER_KM)
-    else:
-        price = 0
-
     return Request(
         start_node=start_node,
         end_node=end_node,
@@ -129,4 +130,7 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
         creation_time=creation_time,
         price=price,
         environmental_preference=True if random.randint(1, 4) == 1 else False,
+        path=path,
+        path_distance=distance,
+        path_time=time,
     )

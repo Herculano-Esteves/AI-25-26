@@ -129,16 +129,16 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
             simulator.requests_to_dropoff.append(v.request)
             v.condition = VehicleCondition.ON_TRIP_WITH_CLIENT
 
-            # Route to the client's destination
-            path_info = find_a_star_route(simulator.map, v.position_node, v.request.end_node)
-            if path_info:
-                path, time, distance = path_info
-                v.current_route = path if path else []
+            if v.request and v.request.path:
+                v.current_route = v.request.path
                 v.current_segment_index = 0
                 v.current_segment_progress_time = 0.0
             else:
-                print(f"[Vehicle] ERROR: Caminho não encontrado do veiculo {v.id}.")
-                simulator.requests_to_dropoff.remove(v.request)
+                print(
+                    f"[Vehicle] ERROR: Caminho não encontrado no pedido {v.request.id if v.request else 'N/A'}."
+                )
+                if v.request in simulator.requests_to_dropoff:
+                    simulator.requests_to_dropoff.remove(v.request)
                 simulator.requests.append(v.request)
                 v.request = None
                 v.condition = VehicleCondition.AVAILABLE
@@ -270,7 +270,7 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
         v.current_segment_progress_time = 0.0
         v.condition = VehicleCondition.ON_WAY_TO_STATION
     else:
-        v.current_route = path
+        v.current_route = []
         v.current_segment_index = 0
         v.current_segment_progress_time = 0.0
         v.condition = VehicleCondition.ON_WAY_TO_STATION

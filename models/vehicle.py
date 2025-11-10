@@ -1,7 +1,9 @@
 from enum import Enum, auto
-from typing import Optional, List, Tuple
+from typing import Optional, List, Tuple, TYPE_CHECKING
 from models.node import Node
-from models.request import Request
+
+if TYPE_CHECKING:
+    from models.request import Request
 
 
 class Motor(Enum):
@@ -30,7 +32,7 @@ class Vehicle:
         remaining_km: float = 0,
         condition: VehicleCondition = VehicleCondition.AVAILABLE,
         current_route: Optional[List[Node]] = None,
-        request: Optional[Request] = None,
+        request: Optional["Request"] = None,
     ) -> None:
         self.id = id
         self.motor = motor
