@@ -9,7 +9,7 @@ from PIL import Image, ImageTk
 
 class MapApplication:
     # GUI constants
-    TICK_RATE_MS = 1
+    TICK_RATE_MS = 5
 
     # Navigation constants
     ZOOM_IN_FACTOR = 1.2  # Zoom-in
@@ -25,7 +25,6 @@ class MapApplication:
     DEBUG_TEXT_COLOR = "yellow"
 
     # Drawing constants
-    NODE_RADIUS = 4
     SPRITE_SIZE_PX = 24
     REQUEST_FONT = ("Arial", 20)
 
@@ -56,6 +55,9 @@ class MapApplication:
         self._drag_start_y = 0
         self._drag_start_offset_x = 0
         self._drag_start_offset_y = 0
+
+        self._drag_last_x = 0
+        self._drag_last_y = 0
 
         self._create_interface()
         self._setup_bindings()
@@ -634,6 +636,7 @@ class MapApplication:
             new_x, new_y = self._world_to_canvas(*v.map_coordinates)
             self.canvas.coords(vehicle_tag, new_x, new_y)
         self._draw_requests()
+        self._draw_station_overlays()
 
     def _on_resize(self, event):
         self.redraw_full_canvas()
@@ -661,15 +664,29 @@ class MapApplication:
         self._drag_start_offset_x = self.offset_x
         self._drag_start_offset_y = self.offset_y
 
+        self._drag_last_x = event.x
+        self._drag_last_y = event.y
+
     def _on_drag_motion(self, event):
-        delta_x = event.x - self._drag_start_x
-        delta_y = event.y - self._drag_start_y
-        self.offset_x = self._drag_start_offset_x + delta_x
-        self.offset_y = self._drag_start_offset_y + delta_y
-        self.redraw_full_canvas()
+        delta_x = event.x - self._drag_last_x
+        delta_y = event.y - self._drag_last_y
+
+        # Move
+        self.canvas.move("all", delta_x, delta_y)
+
+        # Update offset
+        total_delta_x = event.x - self._drag_start_x
+        total_delta_y = event.y - self._drag_start_y
+        self.offset_x = self._drag_start_offset_x + total_delta_x
+        self.offset_y = self._drag_start_offset_y + total_delta_y
+
+        self._drag_last_x = event.x
+        self._drag_last_y = event.y
+
 
     def _on_drag_end(self, event):
         self.canvas.config(cursor="crosshair")  # Restore cursor
+        self.redraw_full_canvas()
 
     def _world_to_canvas(self, world_x, world_y):
         canvas_x = (world_x * self.zoom) + self.offset_x
@@ -687,9 +704,13 @@ class MapApplication:
 
         self.canvas.delete("all")
 
+        c_width = self.canvas.winfo_width()
+        c_height = self.canvas.winfo_height()
+        margin = 100
+
         # Static
-        self._draw_edges()
-        self._draw_nodes()
+        self._draw_edges(c_width, c_height, margin)
+        self._draw_nodes(c_width, c_height, margin)
 
         # Dinamic
         self._draw_requests()
@@ -704,63 +725,70 @@ class MapApplication:
             text=f"Zoom: {self.zoom:.2f} | Offset: ({self.offset_x:.0f}, {self.offset_y:.0f})",
         )
 
-    def _draw_edges(self):
+    def _draw_edges(self, c_width, c_height, margin):
         for start_node, vizinhos in self.simulator.map.adj.items():
             x1, y1 = self._world_to_canvas(*start_node.position)
+            
             for end_node in vizinhos:
-                if start_node == end_node:
-                    continue
-                x2, y2 = self._world_to_canvas(*end_node.position)
-                self.canvas.create_line(
-                    x1, y1, x2, y2, fill=self.EDGE_COLOR, width=1, tags=("aresta",)
-                )
+                if id(start_node) < id(end_node):
+                    x2, y2 = self._world_to_canvas(*end_node.position)
+                    
+                    if (max(x1, x2) < -margin or
+                        min(x1, x2) > c_width + margin or
+                        max(y1, y2) < -margin or
+                        min(y1, y2) > c_height + margin):
+                        continue
 
-    def _draw_nodes(self):
+                    self.canvas.create_line(
+                        x1, y1, x2, y2, fill=self.EDGE_COLOR, width=1, tags=("aresta",)
+                    )
+
+    def _draw_nodes(self, c_width, c_height, margin):
         sprite_gas = self.sprite_cache["gas"]
         sprite_ev = self.sprite_cache["ev"]
-        node_radius = self.NODE_RADIUS
+        # overlay_radius = self.SPRITE_SIZE_PX / 2.5 # No longer needed here
 
         for node in self.simulator.map.nos:
             x, y = self._world_to_canvas(*node.position)
+            if (x < -margin or x > c_width + margin or
+                y < -margin or y > c_height + margin):
+                continue
 
+            # Draw station
             if node.gas_pumps > 0:
                 self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
+            
             elif node.energy_chargers > 0:
                 self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
-            else:
-                self.canvas.create_oval(
-                    x - node_radius,
-                    y - node_radius,
-                    x + node_radius,
-                    y + node_radius,
-                    fill=self.NODE_COLOR,
-                    outline=self.EDGE_COLOR,
-                    tags=("no", "no_normal"),
-                )
 
-        # Draws a cross on unavailable stations
+    def _draw_station_overlays(self):
+        # Delete all old crosses
+        self.canvas.delete("falha_overlay")
+
         overlay_radius = self.SPRITE_SIZE_PX / 2.5
+        
+        c_width = self.canvas.winfo_width()
+        c_height = self.canvas.winfo_height()
+        margin = 100
+
         for node in self.simulator.map.nos:
-            if (node.gas_pumps > 0 or node.energy_chargers > 0) and not node.is_available:
-                x, y = self._world_to_canvas(*node.position)
-                self.canvas.create_line(
-                    x - overlay_radius,
-                    y - overlay_radius,
-                    x + overlay_radius,
-                    y + overlay_radius,
-                    fill="red",
-                    width=4,
-                    tags=("no", "falha_overlay"),
-                )
-                self.canvas.create_line(
-                    x - overlay_radius,
-                    y + overlay_radius,
-                    x + overlay_radius,
-                    y - overlay_radius,
-                    fill="red",
-                    width=4,
-                    tags=("no", "falha_overlay"),
-                )
+            if not node.is_available:
+                if node.gas_pumps > 0 or node.energy_chargers > 0:
+                    x, y = self._world_to_canvas(*node.position)
+
+                    if (x < -margin or x > c_width + margin or
+                        y < -margin or y > c_height + margin):
+                        continue 
+
+                    # Draw the cross
+                    self.canvas.create_line(
+                        x - overlay_radius, y - overlay_radius, x + overlay_radius, y + overlay_radius,
+                        fill="red", width=4, tags=("no", "falha_overlay"),
+                    )
+                    self.canvas.create_line(
+                        x - overlay_radius, y + overlay_radius, x + overlay_radius, y - overlay_radius,
+                        fill="red", width=4, tags=("no", "falha_overlay"),
+                    )
 
     def _draw_requests(self):
         self.canvas.delete("request")
