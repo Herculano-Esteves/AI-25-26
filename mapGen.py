@@ -9,14 +9,33 @@ from search import find_a_star_route
 
 import osmnx as ox
 import math
+import pickle
+import os
 
 # €
 BASE_FARE = 2.50
 PRICE_PER_KM = 0.60
 
+CACHE_FILE = "braga_map_cache.pkl"
 
-def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -> CityGraph:
+
+def generate_map() -> CityGraph:
     place = "Braga, Portugal"
+
+    # Cache
+    if os.path.exists(CACHE_FILE):
+        print(f"A carregar mapa da cache: {CACHE_FILE}...")
+        try:
+            with open(CACHE_FILE, "rb") as f:
+                city_map = pickle.load(f)
+            
+            gas_ev_station_grant_existance(list(city_map.nos))
+            
+            print(f"Mapa OSM carregado da cache: {len(city_map.nos)} nós.")
+            return city_map
+        except Exception as e:
+            print(f"Erro ao carregar cache {CACHE_FILE}: {e}. A gerar novo mapa.")
+
     print(f"Carregando rede OSM para: {place} (pode demorar alguns segundos)...")
     G = ox.graph_from_place(place, network_type="drive")
 
@@ -42,9 +61,8 @@ def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -
         try:
             if isinstance(ms, (int, float)):
                 return float(ms)
-            # string may contain multiple values like '50;80'
             if isinstance(ms, str):
-                # take first number
+                # Take first number
                 for part in ms.split(";"):
                     part = part.strip()
                     try:
@@ -96,6 +114,16 @@ def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -
     gas_ev_station_grant_existance(all_nodes)
 
     print(f"Mapa OSM carregado: {len(all_nodes)} nós, {len(G.edges())} arestas (approx).")
+
+    # Save in cache
+    try:
+        print(f"A guardar mapa na cache: {CACHE_FILE}...")
+        with open(CACHE_FILE, "wb") as f:
+            pickle.dump(city_map, f)
+        print("Mapa guardado com sucesso.")
+    except Exception as e:
+        print(f"Erro ao guardar mapa na cache: {e}")
+
     return city_map
 
 

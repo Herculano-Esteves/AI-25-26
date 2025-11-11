@@ -47,7 +47,7 @@ class Simulator:
 
     def setup_new_map(self):
         print("A criar novo mapa...")
-        self.map = generate_map(self.MAP_WIDTH, self.MAP_HEIGHT, 0.02, 0.005)
+        self.map = generate_map()
 
         all_nodes = list(self.map.nos)
 
