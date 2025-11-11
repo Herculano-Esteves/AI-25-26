@@ -1,11 +1,14 @@
-import networkx as nx
 import random
+from typing import List
+
 from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
 from models.request import Request
-from typing import List
 from search import find_a_star_route
+
+import osmnx as ox
+import math
 
 # €
 BASE_FARE = 2.50
@@ -13,44 +16,87 @@ PRICE_PER_KM = 0.60
 
 
 def generate_map(width=10, height=10, gas_probability=0.1, ev_probability=0.1) -> CityGraph:
-    map = CityGraph()
-    created_nodes = {}
-    all_nodes = list()
+    place = "Braga, Portugal"
+    print(f"Carregando rede OSM para: {place} (pode demorar alguns segundos)...")
+    G = ox.graph_from_place(place, network_type="drive")
+
+    city_map = CityGraph()
+
+    osmn_to_node = {}
 
     # Create nodes
-    for x in range(width):
-        for y in range(height):
-            gas_pumps = 0
-            energy_chargers = 0
+    for node_id, data in G.nodes(data=True):
+        lon = data.get("x")
+        lat = data.get("y")
+        if lon is None or lat is None:
+            continue
+        pos = (lon, lat)
+        no = Node(pos, 0, 0, random.randint(200, 900))
+        osmn_to_node[node_id] = no
+        city_map.add_node(no)
 
-            if random.random() < gas_probability:
-                gas_pumps = random.randint(2, 6)
+    # helper to parse maxspeed if available
+    def _parse_maxspeed(ms):
+        if ms is None:
+            return None
+        try:
+            if isinstance(ms, (int, float)):
+                return float(ms)
+            # string may contain multiple values like '50;80'
+            if isinstance(ms, str):
+                # take first number
+                for part in ms.split(";"):
+                    part = part.strip()
+                    try:
+                        return float(part)
+                    except Exception:
+                        continue
+        except Exception:
+            return None
+        return None
 
-            if random.random() < ev_probability:
-                energy_chargers = random.randint(2, 6)
+    # Create connections from edges
+    for u, v, key, data in G.edges(keys=True, data=True):
+        if u not in osmn_to_node or v not in osmn_to_node:
+            continue
+        no_u = osmn_to_node[u]
+        no_v = osmn_to_node[v]
 
-            pos = (x, y)
-            no = Node(pos, gas_pumps, energy_chargers, random.randint(200, 900))
-            created_nodes[pos] = no
-            map.add_node(no)
+        length_m = data.get("length")
+        if length_m is None:
+            lon1, lat1 = no_u.position
+            lon2, lat2 = no_v.position
+            R = 6371.0
+            phi1 = math.radians(lat1)
+            phi2 = math.radians(lat2)
+            dphi = math.radians(lat2 - lat1)
+            dlambda = math.radians(lon2 - lon1)
+            sa = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+            c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
+            length_km = (R * c)
+        else:
+            length_km = length_m / 1000.0
 
-    # Creates streets
-    G_grid = nx.grid_2d_graph(width, height)
+        # estimate travel speed
+        speed = None
+        maxspeed = data.get("maxspeed")
+        speed = _parse_maxspeed(maxspeed)
+        if speed is None:
+            speed = data.get("speed_kph") or data.get("speed")
+        if speed is None:
+            speed = 30.0
 
-    for u_pos, v_pos in G_grid.edges():
-        no_origem = created_nodes[u_pos]
-        no_destino = created_nodes[v_pos]
+        # time in minutes
+        time_minutes = (length_km / float(speed)) * 60.0 if speed > 0 else (length_km / 30.0) * 60.0
 
-        distancia = 1.0
-        tempo = random.uniform(1.5, 3.0)
+        # add connection (bidirectional)
+        city_map.add_connection(no_u, no_v, length_km, time_minutes, True)
 
-        map.add_connection(no_origem, no_destino, distancia, tempo, True)
-
-    all_nodes = list(created_nodes.values())
+    all_nodes = list(city_map.nos)
     gas_ev_station_grant_existance(all_nodes)
 
-    print(f"Mapa gerado: {width}x{height} ({len(all_nodes)} nós).")
-    return map
+    print(f"Mapa OSM carregado: {len(all_nodes)} nós, {len(G.edges())} arestas (approx).")
+    return city_map
 
 
 def _create_vehicle(

@@ -4,7 +4,7 @@ from typing import Tuple
 class Node:
     def __init__(
         self,
-        position: Tuple[int, int],
+        position: Tuple[float, float],
         gas_pumps: int = 0,
         energy_chargers: int = 0,
         energy_recharge_rate_km_h: int = 0,

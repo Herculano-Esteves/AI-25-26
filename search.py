@@ -10,9 +10,25 @@ from graph import CityGraph
 
 
 def _heuristic_distance(a: Node, b: Node) -> float:
-    (x1, y1) = a.position
-    (x2, y2) = b.position
-    return math.sqrt((x1 - x2) ** 2 + (y1 - y2) ** 2)
+    (lon1, lat1) = a.position
+    (lon2, lat2) = b.position
+
+    # haversine formula
+    def haversine_km(lon_a, lat_a, lon_b, lat_b):
+        R = 6371.0  # Earth radius
+        phi1 = math.radians(lat_a)
+        phi2 = math.radians(lat_b)
+        dphi = math.radians(lat_b - lat_a)
+        dlambda = math.radians(lon_b - lon_a)
+        sa = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+        c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
+        return R * c
+
+    distance_km = haversine_km(lon1, lat1, lon2, lat2)
+    # heuristic in minutes: average speed 30 km/h
+    # minutes = km / (km/h) * 60
+    avg_speed_kmh = 30.0
+    return (distance_km / avg_speed_kmh) * 60.0
 
 
 def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:

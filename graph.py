@@ -10,7 +10,7 @@ class CityGraph:
     def __init__(self):
         self.nos: Set[Node] = set()
         self.adj: Dict[Node, Dict[Node, TipoAresta]] = {}
-        self.position_to_node: Dict[Tuple[int, int], Node] = {}  # Node position
+        self.position_to_node: Dict[Tuple[float, float], Node] = {}
 
     def add_node(self, no: Node):
         # If it already exists it will replace
@@ -22,7 +22,7 @@ class CityGraph:
     def node_exists(self, no: Node) -> bool:
         return no in self.nos
 
-    def get_node_by_position(self, position: Tuple[int, int]) -> Optional[Node]:
+    def get_node_by_position(self, position: Tuple[float, float]) -> Optional[Node]:
         return self.position_to_node.get(position)
 
     def add_connection(

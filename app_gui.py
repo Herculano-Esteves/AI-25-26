@@ -423,8 +423,40 @@ class MapApplication:
         canvas_h = self.canvas.winfo_height()
 
         if canvas_w <= 1 or canvas_h <= 1:
+            # Canvas not yet ready; try again shortly
             self.root.after(100, self.reset_view)
             return
+
+        city_map = getattr(self.simulator, "map", None)
+        if city_map and getattr(city_map, "nos", None):
+            nodes = list(city_map.nos)
+            if nodes:
+                lons = [p.position[0] for p in nodes]
+                lats = [p.position[1] for p in nodes]
+                min_lon, max_lon = min(lons), max(lons)
+                min_lat, max_lat = min(lats), max(lats)
+
+                # world extents
+                world_w = max_lon - min_lon if max_lon > min_lon else 1.0
+                world_h = max_lat - min_lat if max_lat > min_lat else 1.0
+
+                usable_w = canvas_w - (2 * self.PADDING_RESET)
+                usable_h = canvas_h - (2 * self.PADDING_RESET)
+
+                # determine zoom (pixels per degree)
+                scale_x = usable_w / world_w
+                scale_y = usable_h / world_h
+                self.zoom = min(scale_x, scale_y)
+
+                # center on box
+                center_lon = (min_lon + max_lon) / 2.0
+                center_lat = (min_lat + max_lat) / 2.0
+
+                self.offset_x = (canvas_w / 2.0) - (center_lon * self.zoom)
+                self.offset_y = (canvas_h / 2.0) - (center_lat * self.zoom)
+
+                self.redraw_full_canvas()
+                return
 
         usable_w = canvas_w - (2 * self.PADDING_RESET)
         usable_h = canvas_h - (2 * self.PADDING_RESET)
