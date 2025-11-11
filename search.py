@@ -20,7 +20,10 @@ def _heuristic_distance(a: Node, b: Node) -> float:
         phi2 = math.radians(lat_b)
         dphi = math.radians(lat_b - lat_a)
         dlambda = math.radians(lon_b - lon_a)
-        sa = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+        sa = (
+            math.sin(dphi / 2.0) ** 2
+            + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+        )
         c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
         return R * c
 

@@ -11,60 +11,6 @@ from scipy.optimize import linear_sum_assignment
 if TYPE_CHECKING:
     from simulator import Simulator
 
-"""
-Relatorio parte da explicação
-Otimização da Atribuição de Pedidos (assign_pending_requests)
-
-A função assign_pending_requests é o componente central da lógica de despacho da simulação,
-responsável por atribuir de forma eficiente os pedidos pendentes (simulator.requests) aos
-veículos disponíveis (simulator.vehicles em estado AVAILABLE).
-
-Em vez de uma abordagem simples (como "o veículo mais próximo aceita o pedido"), esta função
-implementa uma solução otimizada que modela o cenário como um Problema de Atribuição (Assignment Problem).
-O objetivo é minimizar o custo total da frota, que neste caso é o tempo total que todos os veículos
-passam a viajar para recolher clientes.
-
-O processo é executado nos seguintes passos:
-
-1.
-Construção da Matriz de Custos: É gerada uma matriz de custos bidimensional onde
-as linhas representam cada veículo disponível e as colunas representam cada pedido pendente.
-O valor em cada célula (i,j) corresponde ao custo (tempo em minutos) para o veículo i se deslocar
-até ao ponto de recolha do pedido j. Este tempo é calculado usando o algoritmo A* (find_a_star_route).
-
-2.
-Aplicação de Restrições: Durante a construção da matriz, são aplicadas restrições. A mais significativa
-é a capacidade de passageiros: se um veículo não tiver capacidade suficiente para um pedido, essa atribuição
-é considerada impossível, e o seu custo na matriz é definido como infinito (float('inf')).
-
-3.
-Filtragem da Matriz (Pruning): Antes de resolver o problema, a matriz é analisada para garantir que uma
- solução é viável. São removidos da consideração:
-
-    Pedidos Inservíveis: Quaisquer pedidos (colunas) que não possam ser atendidos por nenhum veículo
-    disponível (ou seja, a coluna inteira é inf).
-
-    Veículos Inúteis: Quaisquer veículos (linhas) que não possam atender a nenhum dos pedidos restantes
-    (ou seja, a linha inteira é inf). Este passo é crucial para evitar erros e garantir que o algoritmo
-    de otimização recebe apenas um problema com solução possível.
-
-4.
-Resolução do Problema de Atribuição: Para encontrar a combinação ótima de atribuições 1-para-1, a função
-utiliza a biblioteca SciPy. Especificamente, invoca a função linear_sum_assignment do módulo scipy.optimize.
-Esta função implementa algoritmos eficientes (como o algoritmo Húngaro) para resolver o problema de
-atribuição linear, encontrando o conjunto de pares (veículo, pedido) que resulta na menor soma de custos
-(tempo total) possível.
-
-5.
-Execução das Atribuições: A função linear_sum_assignment retorna os índices dos pares ótimos. O código
-itera sobre esta solução e, para cada atribuição válida, chama a função assign_request_to_vehicle. Esta
-última função trata de atualizar o estado do veículo para ON_WAY_TO_CLIENT, definir a sua rota e mover
-o pedido da lista de pendentes para a lista de recolha (requests_to_pickup).
-
-Ao utilizar esta abordagem, o simulador garante que, em cada passo, a frota opera com a máxima
-eficiência global, minimizando o tempo e a distância desperdiçados em deslocações sem passageiro,
-em vez de tomar decisões "gulosas" (greedy) que poderiam ser sub-ótimas a longo prazo.
-"""
 # Penalties in minutes:
 ENVIRONMENTAL_PREFERENCE_PENALTY = (
     30.0  # Maybe make it infinite to make it impossible to use combustion

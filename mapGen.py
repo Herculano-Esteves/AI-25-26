@@ -28,9 +28,9 @@ def generate_map() -> CityGraph:
         try:
             with open(CACHE_FILE, "rb") as f:
                 city_map = pickle.load(f)
-            
+
             gas_ev_station_grant_existance(list(city_map.nos))
-            
+
             print(f"Mapa OSM carregado da cache: {len(city_map.nos)} nós.")
             return city_map
         except Exception as e:
@@ -89,9 +89,12 @@ def generate_map() -> CityGraph:
             phi2 = math.radians(lat2)
             dphi = math.radians(lat2 - lat1)
             dlambda = math.radians(lon2 - lon1)
-            sa = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+            sa = (
+                math.sin(dphi / 2.0) ** 2
+                + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+            )
             c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
-            length_km = (R * c)
+            length_km = R * c
         else:
             length_km = length_m / 1000.0
 

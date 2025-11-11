@@ -683,7 +683,6 @@ class MapApplication:
         self._drag_last_x = event.x
         self._drag_last_y = event.y
 
-
     def _on_drag_end(self, event):
         self.canvas.config(cursor="crosshair")  # Restore cursor
         self.redraw_full_canvas()
@@ -728,15 +727,17 @@ class MapApplication:
     def _draw_edges(self, c_width, c_height, margin):
         for start_node, vizinhos in self.simulator.map.adj.items():
             x1, y1 = self._world_to_canvas(*start_node.position)
-            
+
             for end_node in vizinhos:
                 if id(start_node) < id(end_node):
                     x2, y2 = self._world_to_canvas(*end_node.position)
-                    
-                    if (max(x1, x2) < -margin or
-                        min(x1, x2) > c_width + margin or
-                        max(y1, y2) < -margin or
-                        min(y1, y2) > c_height + margin):
+
+                    if (
+                        max(x1, x2) < -margin
+                        or min(x1, x2) > c_width + margin
+                        or max(y1, y2) < -margin
+                        or min(y1, y2) > c_height + margin
+                    ):
                         continue
 
                     self.canvas.create_line(
@@ -746,27 +747,25 @@ class MapApplication:
     def _draw_nodes(self, c_width, c_height, margin):
         sprite_gas = self.sprite_cache["gas"]
         sprite_ev = self.sprite_cache["ev"]
-        # overlay_radius = self.SPRITE_SIZE_PX / 2.5 # No longer needed here
 
         for node in self.simulator.map.nos:
             x, y = self._world_to_canvas(*node.position)
-            if (x < -margin or x > c_width + margin or
-                y < -margin or y > c_height + margin):
+            if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
                 continue
 
             # Draw station
             if node.gas_pumps > 0:
                 self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
-            
+
             elif node.energy_chargers > 0:
                 self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
 
     def _draw_station_overlays(self):
-        # Delete all old crosses
+        # Delete old crosses
         self.canvas.delete("falha_overlay")
 
         overlay_radius = self.SPRITE_SIZE_PX / 2.5
-        
+
         c_width = self.canvas.winfo_width()
         c_height = self.canvas.winfo_height()
         margin = 100
@@ -776,18 +775,27 @@ class MapApplication:
                 if node.gas_pumps > 0 or node.energy_chargers > 0:
                     x, y = self._world_to_canvas(*node.position)
 
-                    if (x < -margin or x > c_width + margin or
-                        y < -margin or y > c_height + margin):
-                        continue 
+                    if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                        continue
 
                     # Draw the cross
                     self.canvas.create_line(
-                        x - overlay_radius, y - overlay_radius, x + overlay_radius, y + overlay_radius,
-                        fill="red", width=4, tags=("no", "falha_overlay"),
+                        x - overlay_radius,
+                        y - overlay_radius,
+                        x + overlay_radius,
+                        y + overlay_radius,
+                        fill="red",
+                        width=4,
+                        tags=("no", "falha_overlay"),
                     )
                     self.canvas.create_line(
-                        x - overlay_radius, y + overlay_radius, x + overlay_radius, y - overlay_radius,
-                        fill="red", width=4, tags=("no", "falha_overlay"),
+                        x - overlay_radius,
+                        y + overlay_radius,
+                        x + overlay_radius,
+                        y - overlay_radius,
+                        fill="red",
+                        width=4,
+                        tags=("no", "falha_overlay"),
                     )
 
     def _draw_requests(self):
