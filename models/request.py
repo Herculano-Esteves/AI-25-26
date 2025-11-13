@@ -17,6 +17,10 @@ class Request:
         path: Optional[List[Node]] = None,
         path_distance: float = 0.0,
         path_time: float = 0.0,
+        nearest_ev_station_path: Optional[List[Node]] = None,
+        nearest_ev_station_distance: float = float("inf"),
+        nearest_gas_station_path: Optional[List[Node]] = None,
+        nearest_gas_station_distance: float = float("inf"),
     ) -> None:
         self.id = Request.id_counter
         Request.id_counter += 1
@@ -30,6 +34,10 @@ class Request:
         self.path = path
         self.path_distance = path_distance
         self.path_time = path_time
+        self.nearest_ev_station_path = nearest_ev_station_path
+        self.nearest_ev_station_distance = nearest_ev_station_distance
+        self.nearest_gas_station_path = nearest_gas_station_path
+        self.nearest_gas_station_distance = nearest_gas_station_distance
 
     def __repr__(self) -> str:
         return (

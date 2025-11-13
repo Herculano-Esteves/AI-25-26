@@ -203,6 +203,30 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
 
     req_priority = random.randint(1, 5)
 
+    # Nearest stations from the end_node
+    ev_stations = [n for n in nos if n.energy_chargers > 0]
+    gas_stations = [n for n in nos if n.gas_pumps > 0]
+
+    nearest_ev_path = None
+    nearest_ev_dist = float("inf")
+    for station in ev_stations:
+        path_info = find_a_star_route(map, end_node, station)
+        if path_info:
+            p, t, d = path_info
+            if d < nearest_ev_dist:
+                nearest_ev_dist = d
+                nearest_ev_path = p
+
+    nearest_gas_path = None
+    nearest_gas_dist = float("inf")
+    for station in gas_stations:
+        path_info = find_a_star_route(map, end_node, station)
+        if path_info:
+            p, t, d = path_info
+            if d < nearest_gas_dist:
+                nearest_gas_dist = d
+                nearest_gas_path = p
+
     return Request(
         start_node=start_node,
         end_node=end_node,
@@ -214,4 +238,8 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
         path=path,
         path_distance=distance,
         path_time=time,
+        nearest_ev_station_path=nearest_ev_path,
+        nearest_ev_station_distance=nearest_ev_dist,
+        nearest_gas_station_path=nearest_gas_path,
+        nearest_gas_station_distance=nearest_gas_dist,
     )

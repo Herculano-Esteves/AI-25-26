@@ -55,9 +55,20 @@ def assign_pending_requests(simulator: "Simulator"):
             if path_info:
                 _, time, dist_to_client = path_info
 
-                # Check if there is enough remaining km
-                dist_of_trip = request.path_distance
-                total_distance_needed = dist_to_client + dist_of_trip
+                # Autonomy check
+                dist_to_refuel = float("inf")  # Distance to refuel after dropoff
+                if vehicle.motor == Motor.ELECTRIC:
+                    dist_to_refuel = request.nearest_ev_station_distance
+                else:
+                    dist_to_refuel = request.nearest_gas_station_distance
+
+                # No station is reachable
+                if dist_to_refuel == float("inf"):
+                    cost_matrix[i, j] = float("inf")
+                    continue
+
+                # Total distance
+                total_distance_needed = dist_to_client + request.path_distance + dist_to_refuel
 
                 if vehicle.remaining_km < total_distance_needed:
                     cost_matrix[i, j] = float("inf")
