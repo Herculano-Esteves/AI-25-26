@@ -1,23 +1,136 @@
+import math
+import random
+import numpy as np
 from typing import List, TYPE_CHECKING
 from models.request import Request
 from models.vehicle import Vehicle, VehicleCondition, Motor
 from search import find_a_star_route
 from mapGen import generate_random_request
 
-import numpy as np
-from scipy.optimize import linear_sum_assignment
-
 
 if TYPE_CHECKING:
     from simulator import Simulator
 
-# Penalties in minutes:
-ENVIRONMENTAL_PREFERENCE_PENALTY = (
-    30.0  # Maybe make it infinite to make it impossible to use combustion
-)
+ENVIRONMENTAL_PREFERENCE_PENALTY = 30.0
 PER_UNUSED_PASSENGER_SEAT_PENALTY = 5.0
 REQUEST_AGE_PRIORITY_WEIGHT = 0.5
-REQUEST_PRIORITY_WEIGHT = 10.0  # Priority weight
+REQUEST_PRIORITY_WEIGHT = 10.0
+
+
+def calculate_total_cost(assignment, cost_matrix):
+    """Calcula o custo total de uma configuração de atribuição."""
+    total_cost = 0.0
+    rows, cols = cost_matrix.shape
+
+    for vehicle_idx, request_idx in enumerate(assignment):
+        if request_idx != -1:  # Se o veículo tem um pedido atribuído
+            cost = cost_matrix[vehicle_idx, request_idx]
+            # Se a atribuição for inválida (infinito), penalizamos pesadamente
+            if cost == float("inf"):
+                total_cost += 1e9
+            else:
+                total_cost += cost
+    return total_cost
+
+
+def get_neighbor(current_assignment):
+    """Gera um vizinho trocando dois elementos no vetor de atribuição."""
+    neighbor = current_assignment.copy()
+    n = len(neighbor)
+    
+    # Se tivermos menos de 2 veículos, não dá para trocar posições.
+    if n < 2:
+        return neighbor
+
+    # Escolhe dois índices aleatórios para trocar
+    i, j = random.sample(range(n), 2)
+    
+    # Realiza a troca (Swap)
+    neighbor[i], neighbor[j] = neighbor[j], neighbor[i]
+    
+    return neighbor
+
+
+def simulated_annealing_assignment(cost_matrix, max_iter=500, initial_temp=100.0, alpha=0.95):
+    """
+    Resolve o problema de atribuição linear usando Simulated Annealing.
+    Retorna uma lista de tuplas (row_ind, col_ind).
+    """
+    num_vehicles, num_requests = cost_matrix.shape
+
+    # 1. Estado Inicial
+    # Criamos uma lista com o tamanho dos veículos.
+    # Preenchemos com os índices dos pedidos disponíveis.
+    # Se houver mais veículos que pedidos, preenchemos o resto com -1 (vazio).
+    # Se houver mais pedidos que veículos, o SA atual vai ignorar os excedentes.
+
+    current_assignment = [-1] * num_vehicles
+
+    # Lista de pedidos a distribuir (0 a num_requests-1)
+    # Nota: Se num_requests > num_vehicles, pegamos apenas os primeiros (limitação simples)
+    # ou expandimos o array para permitir permutações completas.
+    # Para simplificar: assumimos que permutamos os slots disponíveis nos veículos.
+    available_request_indices = list(range(num_requests))
+
+    # Se houver mais pedidos que veículos, infelizmente alguns ficam de fora nesta iteração
+    # O Simulated Annealing vai tentar encontrar a melhor combinação dos que cabem.
+    requests_to_fit = available_request_indices[:num_vehicles]
+
+    for i, req_idx in enumerate(requests_to_fit):
+        current_assignment[i] = req_idx
+
+    # Randomizar estado inicial
+    random.shuffle(current_assignment)
+
+    current_cost = calculate_total_cost(current_assignment, cost_matrix)
+
+    best_assignment = current_assignment.copy()
+    best_cost = current_cost
+
+    temperature = initial_temp
+
+    # 2. Loop de Otimização
+    for i in range(max_iter):
+        neighbor = get_neighbor(current_assignment)
+        neighbor_cost = calculate_total_cost(neighbor, cost_matrix)
+
+        delta = neighbor_cost - current_cost
+
+        # Critério de Aceitação
+        acceptance_prob = 0.0
+        if delta < 0:
+            acceptance_prob = 1.0
+        else:
+            # Evitar overflow se T for muito baixo
+            if temperature > 1e-5:
+                acceptance_prob = math.exp(-delta / temperature)
+            else:
+                acceptance_prob = 0.0
+
+        if random.random() < acceptance_prob:
+            current_assignment = neighbor
+            current_cost = neighbor_cost
+
+            if current_cost < best_cost:
+                best_assignment = current_assignment.copy()
+                best_cost = current_cost
+
+        # Resfriamento
+        temperature *= alpha
+
+    # 3. Formatar saída para corresponder ao formato esperado (row_ind, col_ind)
+    row_ind = []
+    col_ind = []
+
+    for v_idx, r_idx in enumerate(best_assignment):
+        if r_idx != -1:
+            # Verificar se o custo não é infinito (atribuição impossível)
+            if cost_matrix[v_idx, r_idx] != float("inf"):
+                row_ind.append(v_idx)
+                col_ind.append(r_idx)
+
+    return row_ind, col_ind
+
 
 
 def assign_pending_requests(simulator: "Simulator"):
@@ -45,114 +158,81 @@ def assign_pending_requests(simulator: "Simulator"):
         for j in range(num_requests):
             request = pending_requests[j]
 
-            # Check capacity constraint
             if vehicle.passenger_capacity < request.passenger_capacity:
-                cost_matrix[i, j] = float("inf")
                 continue
 
-            # Calculate cost (A* time)
             path_info = find_a_star_route(simulator.map, vehicle.position_node, request.start_node)
             if path_info:
                 _, time, dist_to_client = path_info
 
-                # Autonomy check
-                dist_to_refuel = float("inf")  # Distance to refuel after dropoff
+                dist_to_refuel = float("inf")
                 if vehicle.motor == Motor.ELECTRIC:
                     dist_to_refuel = request.nearest_ev_station_distance
                 else:
                     dist_to_refuel = request.nearest_gas_station_distance
 
-                # No station is reachable
                 if dist_to_refuel == float("inf"):
-                    cost_matrix[i, j] = float("inf")
                     continue
 
-                # Total distance
                 total_distance_needed = dist_to_client + request.path_distance + dist_to_refuel
 
                 if vehicle.remaining_km < total_distance_needed:
-                    cost_matrix[i, j] = float("inf")
                     continue
 
-                # How long this request has been waiting
                 wait_time_minutes = simulator.current_time - request.creation_time
                 age_bonus = wait_time_minutes * REQUEST_AGE_PRIORITY_WEIGHT
-
                 priority_bonus = (request.priority - 1) * REQUEST_PRIORITY_WEIGHT
-                time += -age_bonus - priority_bonus
+
+                # Custo base é o tempo
+                cost = time - age_bonus - priority_bonus
 
                 if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
-                    time += ENVIRONMENTAL_PREFERENCE_PENALTY
+                    cost += ENVIRONMENTAL_PREFERENCE_PENALTY
 
                 if request.passenger_capacity < vehicle.passenger_capacity:
-                    time += PER_UNUSED_PASSENGER_SEAT_PENALTY * (
+                    cost += PER_UNUSED_PASSENGER_SEAT_PENALTY * (
                         vehicle.passenger_capacity - request.passenger_capacity
                     )
 
-                cost_matrix[i, j] = time
-            # cost_matrix remains 'inf' if no path found
+                cost_matrix[i, j] = cost
 
-    # Find which requests are serviceable
-    serviceable_request_indices = []
-    serviceable_requests = []
-    for j in range(num_requests):
-        if not np.all(cost_matrix[:, j] == float("inf")):
-            serviceable_request_indices.append(j)
-            serviceable_requests.append(pending_requests[j])
-
-    if not serviceable_requests:
+# Verificar se a matriz tem alguma solução viável
+    if np.all(cost_matrix == float("inf")):
         return
+    
+    # O Simulated Annealing precisa de pelo menos 2 para fazer trocas.
+    # Se só há 1, fazemos uma escolha simples (Gulosa) do melhor pedido para ele.
+    if num_vehicles == 1:
+        # Pega a linha de custos do único veículo
+        costs = cost_matrix[0] 
+        # Encontra o índice do menor custo (argmin)
+        best_req_idx = np.argmin(costs)
+        
+        # Se o custo for infinito, não faz nada
+        if costs[best_req_idx] == float("inf"):
+            return
 
-    # Filter the matrix to only include serviceable requests
-    pruned_matrix_cols = cost_matrix[:, serviceable_request_indices]
+        assignments_to_make = [(available_vehicles[0], pending_requests[best_req_idx])]
+    
+    else:
+        vehicle_indices, request_indices = simulated_annealing_assignment(
+            cost_matrix, 
+            max_iter=500, 
+            initial_temp=50.0, 
+            alpha=0.90
+        )
 
-    # Find which vehicles are serviceable
-    serviceable_vehicle_indices = []
-    serviceable_vehicles = []
-    for i in range(num_vehicles):
-        if not np.all(pruned_matrix_cols[i, :] == float("inf")):
-            serviceable_vehicle_indices.append(i)
-            serviceable_vehicles.append(available_vehicles[i])
+        assignments_to_make = []
+        for v_id, r_id in zip(vehicle_indices, request_indices):
+            cost = cost_matrix[v_id, r_id]
+            if cost == float("inf"):
+                continue
 
-    if not serviceable_vehicles:
-        return
+            vehicle = available_vehicles[v_id]
+            request = pending_requests[r_id]
+            assignments_to_make.append((vehicle, request))
 
-    # This selects only the valid rows and columns
-    feasible_matrix = cost_matrix[np.ix_(serviceable_vehicle_indices, serviceable_request_indices)]
-
-    if feasible_matrix.size == 0:
-        return
-
-    # Check if there is at least one finite number
-    if not np.any(np.isfinite(feasible_matrix)):
-        return
-
-    # Replace inf for a huge number (biggest number * row * col)
-    solver_matrix = np.copy(feasible_matrix)
-    finite_max_array = solver_matrix[np.isfinite(solver_matrix)]
-
-    if finite_max_array.size == 0:
-        return
-
-    finite_max = np.max(finite_max_array)
-    num_rows, num_cols = solver_matrix.shape
-    biggest_cost = (finite_max * max(num_rows, num_cols)) + 1
-    solver_matrix[np.isinf(solver_matrix)] = biggest_cost
-
-    # Solve
-    vehicle_indices, request_indices = linear_sum_assignment(solver_matrix)
-
-    assignments_to_make = []
-    for v_id, r_id in zip(vehicle_indices, request_indices):
-
-        cost = feasible_matrix[v_id, r_id]
-        if cost == float("inf"):
-            continue
-
-        vehicle = serviceable_vehicles[v_id]
-        request = serviceable_requests[r_id]
-        assignments_to_make.append((vehicle, request))
-
+    # Aplicar as atribuições
     for vehicle, request in assignments_to_make:
         if request in simulator.requests and vehicle.condition == VehicleCondition.AVAILABLE:
             assign_request_to_vehicle(simulator, request, vehicle)
