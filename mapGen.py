@@ -1,6 +1,5 @@
 import random
 from typing import List
-
 from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
@@ -15,32 +14,27 @@ import os
 # €
 BASE_FARE = 2.50
 PRICE_PER_KM = 0.60
-
 CACHE_FILE = "braga_map_cache.pkl"
-
 
 def generate_map() -> CityGraph:
     place = "Braga, Portugal"
 
-    # Cache
     if os.path.exists(CACHE_FILE):
         print(f"A carregar mapa da cache: {CACHE_FILE}...")
         try:
             with open(CACHE_FILE, "rb") as f:
                 city_map = pickle.load(f)
-
+            
             gas_ev_station_grant_existance(list(city_map.nos))
-
-            print(f"Mapa OSM carregado da cache: {len(city_map.nos)} nós.")
+            print(f"Mapa carregado: {len(city_map.nos)} nós.")
             return city_map
         except Exception as e:
-            print(f"Erro ao carregar cache {CACHE_FILE}: {e}. A gerar novo mapa.")
+            print(f"Erro cache: {e}. A gerar novo.")
 
-    print(f"Carregando rede OSM para: {place} (pode demorar alguns segundos)...")
-    G = ox.graph_from_place(place, network_type="drive")
-
+    print(f"A descarregar grafo OSM para: {place}...")
+    G = ox.graph_from_place(place, network_type="drive", simplify=True)
+    
     city_map = CityGraph()
-
     osmn_to_node = {}
 
     # Create nodes
@@ -49,85 +43,113 @@ def generate_map() -> CityGraph:
         lat = data.get("y")
         if lon is None or lat is None:
             continue
-        pos = (lon, lat)
-        no = Node(pos, 0, 0, random.randint(200, 900))
+        no = Node((lon, lat), 0, 0, 0) 
         osmn_to_node[node_id] = no
         city_map.add_node(no)
 
-    # helper to parse maxspeed if available
-    def _parse_maxspeed(ms):
-        if ms is None:
-            return None
-        try:
-            if isinstance(ms, (int, float)):
-                return float(ms)
-            if isinstance(ms, str):
-                # Take first number
-                for part in ms.split(";"):
-                    part = part.strip()
-                    try:
-                        return float(part)
-                    except Exception:
-                        continue
-        except Exception:
-            return None
-        return None
-
-    # Create connections from edges
     for u, v, key, data in G.edges(keys=True, data=True):
         if u not in osmn_to_node or v not in osmn_to_node:
             continue
         no_u = osmn_to_node[u]
         no_v = osmn_to_node[v]
 
-        length_m = data.get("length")
-        if length_m is None:
-            lon1, lat1 = no_u.position
-            lon2, lat2 = no_v.position
-            R = 6371.0
-            phi1 = math.radians(lat1)
-            phi2 = math.radians(lat2)
-            dphi = math.radians(lat2 - lat1)
-            dlambda = math.radians(lon2 - lon1)
-            sa = (
-                math.sin(dphi / 2.0) ** 2
-                + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
-            )
-            c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
-            length_km = R * c
-        else:
-            length_km = length_m / 1000.0
+        length_m = data.get("length", 0)
+        length_km = length_m / 1000.0
 
-        # estimate travel speed
-        speed = None
+        # Parse maxspeed if available
         maxspeed = data.get("maxspeed")
-        speed = _parse_maxspeed(maxspeed)
-        if speed is None:
-            speed = data.get("speed_kph") or data.get("speed")
-        if speed is None:
-            speed = 30.0
+        speed_kmh = _parse_maxspeed(maxspeed)
+        
+        # No max speed defined
+        if speed_kmh is None:
+            highway = data.get("highway")
+            if highway in ["motorway", "trunk"]: speed_kmh = 90.0
+            elif highway == "primary": speed_kmh = 50.0
+            else: speed_kmh = 30.0
 
-        # time in minutes
-        time_minutes = (length_km / float(speed)) * 60.0 if speed > 0 else (length_km / 30.0) * 60.0
+        if length_km == 0:
+             time_minutes = 0
+        else:
+             time_minutes = (length_km / speed_kmh) * 60.0
 
-        # add connection (bidirectional)
-        city_map.add_connection(no_u, no_v, length_km, time_minutes, True)
+        # Speed_kmh to graph
+        city_map.add_connection(no_u, no_v, length_km, time_minutes, speed_kmh, True)
+
+    # Get real stations
+    _enrich_nodes_with_stations(G, city_map, place)
 
     all_nodes = list(city_map.nos)
     gas_ev_station_grant_existance(all_nodes)
 
-    print(f"Mapa OSM carregado: {len(all_nodes)} nós, {len(G.edges())} arestas (approx).")
-
-    # Save in cache
+    print(f"Mapa gerado com sucesso.")
     try:
-        print(f"A guardar mapa na cache: {CACHE_FILE}...")
         with open(CACHE_FILE, "wb") as f:
             pickle.dump(city_map, f)
-        print("Mapa guardado com sucesso.")
     except Exception as e:
-        print(f"Erro ao guardar mapa na cache: {e}")
+        print(f"Erro ao guardar cache: {e}")
 
     return city_map
+
+def _enrich_nodes_with_stations(G, city_map: CityGraph, place: str):
+    """
+    Tries to find real gas/ev stations
+    """
+    print("A procurar estações reais (Combustível e EV)...")
+    try:
+        tags = {'amenity': ['fuel', 'charging_station']}
+        gdf = ox.features_from_place(place, tags) # type: ignore
+        
+        if gdf.empty:
+            print("Nenhuma estação encontrada no OSM data.")
+            return
+
+        count_gas = 0
+        count_ev = 0
+        
+        for _, row in gdf.iterrows():
+            amenity = row.get('amenity')
+            
+            if hasattr(row.geometry, 'centroid'):
+                lon = row.geometry.centroid.x
+                lat = row.geometry.centroid.y
+            else:
+                lon = row.geometry.x
+                lat = row.geometry.y
+
+            # Finds nearest node
+            nearest_osmn_id = ox.distance.nearest_nodes(G, lon, lat)
+            
+            nearest_node_data = G.nodes[nearest_osmn_id]
+            n_lon = nearest_node_data['x']
+            n_lat = nearest_node_data['y']
+            
+            target_node = city_map.get_node_by_position((n_lon, n_lat))
+
+            if target_node:
+                if amenity == 'fuel':
+                    target_node.gas_pumps = random.randint(4, 8)
+                    count_gas += 1
+                elif amenity == 'charging_station':
+                    target_node.energy_chargers = random.randint(2, 6)
+                    target_node.energy_recharge_rate_kw = random.choice([50, 150, 250]) # Fast charging
+                    count_ev += 1
+
+        print(f"Integração Real: {count_gas} Postos Gasolina, {count_ev} Carregadores EV encontrados.")
+
+    except Exception as e:
+        print(f"Aviso: Não foi possível extrair estações reais ({e}). Usando aleatórias.")
+
+def _parse_maxspeed(ms):
+    if ms is None: return None
+    try:
+        if isinstance(ms, list): ms = ms[0]
+        if isinstance(ms, (int, float)): return float(ms)
+        if isinstance(ms, str):
+            clean = ms.replace(' mph', '').replace(' km/h', '').split(';')[0].strip()
+            return float(clean)
+    except:
+        return None
+    return None
 
 
 def _create_vehicle(

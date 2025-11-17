@@ -96,7 +96,7 @@ def find_a_star_route(
                 continue
 
             # A* optimizes by *time* (index 1)
-            edge_distance, edge_time = edge_info
+            edge_distance, edge_time, _ = edge_info
 
             # Calculate the 'g' cost (time)
             tentative_g_score = g_score[current] + edge_time

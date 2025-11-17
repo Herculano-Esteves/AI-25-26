@@ -1,9 +1,8 @@
 from typing import Tuple, Set, Dict, List, Optional
 from models.node import Node
 
-# (Distance Km, time minutes)
-TipoAresta = Tuple[float, float]
-
+# (Distance Km, Time minutes, Max Speed km/h)
+TipoAresta = Tuple[float, float, float]
 
 class CityGraph:
 
@@ -13,7 +12,6 @@ class CityGraph:
         self.position_to_node: Dict[Tuple[float, float], Node] = {}
 
     def add_node(self, no: Node):
-        # If it already exists it will replace
         if no not in self.nos:
             self.nos.add(no)
             self.adj[no] = {}
@@ -31,15 +29,16 @@ class CityGraph:
         end_node: Node,
         distance_km: float,
         time: float,  # Minutes
+        max_speed: float,
         bidirecional: bool = True,
     ):
         self.add_node(start_node)
         self.add_node(end_node)
 
-        self.adj[start_node][end_node] = (distance_km, time)
+        self.adj[start_node][end_node] = (distance_km, time, max_speed)
 
         if bidirecional:
-            self.adj[end_node][start_node] = (distance_km, time)
+            self.adj[end_node][start_node] = (distance_km, time, max_speed)
 
     def get_node_neighbours(self, no: Node) -> List[Node]:
         if no not in self.adj:
@@ -64,6 +63,6 @@ class CityGraph:
             if not vizinhos:
                 output += "    -> (Nenhum vizinho)\n"
             for vizinho, peso in vizinhos.items():
-                dist, tempo = peso
-                output += f"    -> {vizinho} | (Dist: {dist} km, Tempo: {tempo} min)\n"
+                dist, tempo, max_speed = peso
+                output += f"    -> {vizinho} | (Dist: {dist} km, Tempo: {tempo} min, Velocidade maxima: {max_speed} km/h)\n"
         return output

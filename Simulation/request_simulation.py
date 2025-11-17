@@ -17,27 +17,30 @@ class PlanningConfig:
     """
 
     # Pesos Base
-    WEIGHT_TIME = 1.0 # Peso de 1 minuto de viagem
+    WEIGHT_TIME = 1.0  # Peso de 1 minuto de viagem
     WEIGHT_PRIORITY = 30.0  # Quanto vale cada nível de prioridade
     WEIGHT_AGE = 4.0  # Peso por minuto de espera
 
     # Penalizações "Hard"
     PENALTY_IMPOSSIBLE = float("inf")
-    PENALTY_ENV_MISMATCH = 100.0  # Veículo a combustão em pedido "Green"
-    PENALTY_UNUSED_SEAT = 5.0 # Por lugar vazio
+
+    # Penalização dinâmica por Km
+    PENALTY_ENV_MISMATCH_PER_KM = 15.0
+
+    PENALTY_UNUSED_SEAT = 5.0  # Por lugar vazio
 
     # Penalizações
     BATTERY_RISK_EXPONENT = 2.0  # Quão agressiva é a curva de risco (quadrática/exponencial)
     BATTERY_CRITICAL_LEVEL = 30.0  # Abaixo disto, o risco dispara
-    WEIGHT_BATTERY_RISK = 20.0 # Multiplicador do fator de risco
+    WEIGHT_BATTERY_RISK = 20.0  # Multiplicador do fator de risco
 
     WEIGHT_ISOLATION = 1  # Custo por km de distância de um Hotspot após entrega
     WEIGHT_FUTURE_REFUEL = 1.5  # Custo por km até à estação mais próxima APÓS entrega
 
     # Custo de Oportunidade
-    WEIGHT_LOST_OPPORTUNITY = 40.0 # EV a fazer pedido não-ecológico quando há ecológicos na fila
+    WEIGHT_LOST_OPPORTUNITY = 40.0  # EV a fazer pedido não-ecológico quando há ecológicos na fila
 
-    BACKLOG_BASE_PENALTY = 160.0   # Custo fixo por deixar alguém para trás
+    BACKLOG_BASE_PENALTY = 160.0  # Custo fixo por deixar alguém para trás
 
 
 class StrategyManager:
@@ -119,9 +122,10 @@ def calculate_detailed_cost(
     cost -= wait_time * PlanningConfig.WEIGHT_AGE
     cost -= (request.priority - 1) * PlanningConfig.WEIGHT_PRIORITY
 
-    # Penalizações
+    # Penalizações proporcionalmente à distância da viagem.
+    # Viagens longas num motor a combustão para um cliente Eco custam mais.
     if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
-        cost += PlanningConfig.PENALTY_ENV_MISMATCH
+        cost += request.path_distance * PlanningConfig.PENALTY_ENV_MISMATCH_PER_KM
 
     if vehicle.passenger_capacity > request.passenger_capacity:
         cost += (
@@ -162,8 +166,11 @@ def calculate_detailed_cost(
     # Se estiver a morrer, aceita qualquer coisa sem penalidade de oportunidade.
     if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
         if has_eco_in_backlog:
-            if remaining_km_after > (PlanningConfig.BATTERY_CRITICAL_LEVEL * 1.5):
-                cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY
+            # Penaçização em relação à percentagem de bateria (Sobrevivência vs Oportunidade)
+            safe_range = vehicle.max_km * 0.6
+            battery_factor = min(1.0, vehicle.remaining_km / safe_range)
+
+            cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY * battery_factor
 
     return cost
 
@@ -307,7 +314,7 @@ def simulated_annealing_solver(
     best_energy = current_energy
 
     temp = initial_temp
-    alpha = 0.96 # Arrefecimento
+    alpha = 0.96  # Arrefecimento
 
     stagnation_counter = 0
 
