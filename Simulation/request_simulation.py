@@ -13,86 +13,72 @@ if TYPE_CHECKING:
 
 class PlanningConfig:
     """
-    Centraliza todos os pesos e penalizações para facilitar o tuning e a explicação no relatório.
+    Centraliza todos os pesos e penalizações para facilitar o tuning.
     """
 
     # Pesos Base
-    WEIGHT_TIME = 1.0  # Peso de 1 minuto de viagem
-    WEIGHT_PRIORITY = 25.0  # Quanto vale cada nível de prioridade
-    WEIGHT_AGE = 3.0  # Peso por minuto de espera
+    WEIGHT_TIME = 1.0 # Peso de 1 minuto de viagem
+    WEIGHT_PRIORITY = 30.0  # Quanto vale cada nível de prioridade
+    WEIGHT_AGE = 4.0  # Peso por minuto de espera
 
     # Penalizações "Hard"
     PENALTY_IMPOSSIBLE = float("inf")
-    PENALTY_ENV_MISMATCH = 80.0  # Veículo a combustão em pedido "Green"
-    PENALTY_UNUSED_SEAT = 5.0  # Por lugar vazio
+    PENALTY_ENV_MISMATCH = 100.0  # Veículo a combustão em pedido "Green"
+    PENALTY_UNUSED_SEAT = 5.0 # Por lugar vazio
 
-    # Penalizações "Soft"
-    # Topic 5: Risco de Bateria
-    BATTERY_RISK_EXPONENT = 1.8  # Quão agressiva é a curva de risco (quadrática/exponencial)
-    BATTERY_CRITICAL_LEVEL = 25.0  # Abaixo disto, o risco dispara
-    WEIGHT_BATTERY_RISK = 15.0  # Multiplicador do fator de risco
+    # Penalizações
+    BATTERY_RISK_EXPONENT = 2.0  # Quão agressiva é a curva de risco (quadrática/exponencial)
+    BATTERY_CRITICAL_LEVEL = 30.0  # Abaixo disto, o risco dispara
+    WEIGHT_BATTERY_RISK = 20.0 # Multiplicador do fator de risco
 
-    # Isolamento e Hotspots
-    WEIGHT_ISOLATION = 0.8  # Custo por km de distância de um Hotspot após entrega
-
-    # Recarga Futura
+    WEIGHT_ISOLATION = 1  # Custo por km de distância de um Hotspot após entrega
     WEIGHT_FUTURE_REFUEL = 1.5  # Custo por km até à estação mais próxima APÓS entrega
 
     # Custo de Oportunidade
-    WEIGHT_LOST_OPPORTUNITY = 40.0  # EV a fazer pedido não-ecológico quando há ecológicos na fila
+    WEIGHT_LOST_OPPORTUNITY = 40.0 # EV a fazer pedido não-ecológico quando há ecológicos na fila
 
-    # Backlog
-    BACKLOG_BASE_PENALTY = 150.0  # Custo fixo por deixar alguém para trás
+    BACKLOG_BASE_PENALTY = 160.0   # Custo fixo por deixar alguém para trás
 
 
 class StrategyManager:
     _hotspots: List[Node] = []
 
     @classmethod
-    def identify_hotspots(self, simulator: "Simulator"):  # Usar depois localizações reais
+    def identify_hotspots(cls, simulator: "Simulator"):
         """
-        Identifica nós estratégicos no mapa (Topic 3).
-        Critério: Nós com mais conexões ou centrais.
-        Simplificação: Escolhe 4 nós aleatórios mas consistentes se não houver dados de centralidade.
+        Identifica nós estratégicos (Centrais e de Interesse).
+        Usar depois localizações reais
         """
-        if self._hotspots:
-            return self._hotspots
+        if cls._hotspots:
+            return cls._hotspots
 
         nodes = list(simulator.map.nos)
         if not nodes:
             return []
 
-        # Heurística simples para "Centro da Cidade" (média das coordenadas)
+        # Centro Geométrico
         avg_x = sum(n.position[0] for n in nodes) / len(nodes)
         avg_y = sum(n.position[1] for n in nodes) / len(nodes)
         center_dummy = Node((avg_x, avg_y))
-
-        # Encontrar o nó real mais próximo do centro geométrico
         center_node = min(nodes, key=lambda n: _heuristic_distance(n, center_dummy))
 
-        # Adicionar o centro e alguns nós periféricos distantes para cobrir área
-        self._hotspots = [center_node]
+        cls._hotspots = [center_node]
 
-        # Adicionar mais 3 hotspots aleatórios para simular zonas de interesse (Estação, Shopping, etc.)
-        # Usamos seed para consistência
-        random.seed(42)
-        self._hotspots.extend(random.sample(nodes, min(len(nodes), 3)))
-        random.seed()  # Reset seed
+        # Adicionar pontos aleatórios fixos (ex: Estações, Aeroporto)
+        rng = random.Random(42)
+        cls._hotspots.extend(rng.sample(nodes, min(len(nodes), 4)))
 
-        print(f"[Strategy] {len(self._hotspots)} Hotspots identificados para planeamento.")
-        return self._hotspots
+        return cls._hotspots
 
     @staticmethod
     def get_dist_to_nearest_hotspot(node: Node, simulator: "Simulator") -> float:
         hotspots = StrategyManager.identify_hotspots(simulator)
         if not hotspots:
             return 0.0
-        # Usa heurística (linha reta) para ser rápido. A* aqui seria muito lento.
         return min(_heuristic_distance(node, h) for h in hotspots)
 
     @staticmethod
     def get_dist_to_nearest_station(node: Node, motor: Motor, simulator: "Simulator") -> float:
-        """Retorna distância estimada à estação compatível mais próxima."""
         stations = []
         if motor == Motor.ELECTRIC:
             stations = [n for n in simulator.map.nos if n.energy_chargers > 0]
@@ -101,14 +87,13 @@ class StrategyManager:
 
         if not stations:
             return float("inf")
-
         return min(_heuristic_distance(node, s) for s in stations)
 
 
 class SAState:
     def __init__(self, assignment: List[int], backlog: Set[int]):
-        self.assignment = assignment  # assignment[v_idx] = req_idx (ou -1)
-        self.backlog = backlog  # set de req_idxs
+        self.assignment = assignment
+        self.backlog = backlog
 
     def copy(self):
         return SAState(self.assignment.copy(), self.backlog.copy())
@@ -122,69 +107,63 @@ def calculate_detailed_cost(
     has_eco_in_backlog: bool,
 ) -> float:
     """
-    Calcula o custo TOTAL de uma atribuição (Viagem + Futuro + Risco).
-    Aqui reside a inteligência da Fase 3.
+    Calcula o custo total de uma atribuição.
     """
     _, time_to_pickup, dist_to_pickup = path_info
 
-    # Custo Base (Tempo)
+    # Custo Base
     cost = time_to_pickup * PlanningConfig.WEIGHT_TIME
 
-    # Bónus (Idade e Prioridade) - Reduzem o custo para tornar atrativo
+    # Bónus de Atendimento
     wait_time = simulator.current_time - request.creation_time
     cost -= wait_time * PlanningConfig.WEIGHT_AGE
     cost -= (request.priority - 1) * PlanningConfig.WEIGHT_PRIORITY
 
-    # Penalizações "Hard"
+    # Penalizações
     if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
         cost += PlanningConfig.PENALTY_ENV_MISMATCH
 
-    unused_seats = vehicle.passenger_capacity - request.passenger_capacity
-    if unused_seats > 0:
-        cost += unused_seats * PlanningConfig.PENALTY_UNUSED_SEAT
+    if vehicle.passenger_capacity > request.passenger_capacity:
+        cost += (
+            vehicle.passenger_capacity - request.passenger_capacity
+        ) * PlanningConfig.PENALTY_UNUSED_SEAT
 
-    # Análise de Estado Futuro (Lookahead Simplificado)
-    # O veículo vai viajar: Pickup -> Destino
+    # Estado Futuro e Risco
     total_trip_dist = dist_to_pickup + request.path_distance
     remaining_km_after = vehicle.remaining_km - total_trip_dist
 
-    # Restrição física absoluta
     if remaining_km_after < 0:
         return float("inf")
 
-    # Curva exponencial: quanto mais perto de 0, mais caro fica
+    # Risco de Bateria (Exponencial)
     risk_factor = 0.0
-    if remaining_km_after < vehicle.max_km:  # Só se gastou algo
-        if remaining_km_after < PlanningConfig.BATTERY_CRITICAL_LEVEL:
-            # Penalidade cresce drasticamente
-            deficit = PlanningConfig.BATTERY_CRITICAL_LEVEL - remaining_km_after
-            risk_factor = (
-                deficit**PlanningConfig.BATTERY_RISK_EXPONENT
-            ) * PlanningConfig.WEIGHT_BATTERY_RISK
-
+    if remaining_km_after < PlanningConfig.BATTERY_CRITICAL_LEVEL:
+        deficit = PlanningConfig.BATTERY_CRITICAL_LEVEL - remaining_km_after
+        risk_factor = (
+            deficit**PlanningConfig.BATTERY_RISK_EXPONENT
+        ) * PlanningConfig.WEIGHT_BATTERY_RISK
     cost += risk_factor
 
-    final_pos_node = request.end_node
+    # Planeamento Pós-Entrega
+    final_pos = request.end_node
 
-    # Estimar distância para o posto mais próximo a partir do DESTINO
-    dist_to_station = StrategyManager.get_dist_to_nearest_station(
-        final_pos_node, vehicle.motor, simulator
-    )
+    # Estimar distância para o posto mais próximo a partir do destino
+    dist_station = StrategyManager.get_dist_to_nearest_station(final_pos, vehicle.motor, simulator)
+    if dist_station > remaining_km_after:
+        return float("inf")  # Stranded
+    cost += dist_station * PlanningConfig.WEIGHT_FUTURE_REFUEL
 
-    # Se a distância ao posto for maior que a autonomia que sobra... catástrofe.
-    if dist_to_station > remaining_km_after:
-        return float("inf")  # Veículo ficaria stranded após a entrega
+    # Isolamento (Hotspots)
+    dist_hotspot = StrategyManager.get_dist_to_nearest_hotspot(final_pos, simulator)
+    cost += dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
 
-    cost += dist_to_station * PlanningConfig.WEIGHT_FUTURE_REFUEL
-
-    # Evitar mandar carros para o meio do nada se não necessário
-    dist_to_hotspot = StrategyManager.get_dist_to_nearest_hotspot(final_pos_node, simulator)
-    cost += dist_to_hotspot * PlanningConfig.WEIGHT_ISOLATION
-
-    # Se sou um EV e estou a levar um pedido normal, mas há pedidos ECO na fila
+    # Custo de Oportunidade Inteligente
+    # Só penaliza EV por não levar "Eco" se tiver bateria confortável (> 40% do critico)
+    # Se estiver a morrer, aceita qualquer coisa sem penalidade de oportunidade.
     if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
         if has_eco_in_backlog:
-            cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY
+            if remaining_km_after > (PlanningConfig.BATTERY_CRITICAL_LEVEL * 1.5):
+                cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY
 
     return cost
 
@@ -192,13 +171,9 @@ def calculate_detailed_cost(
 def calculate_total_system_energy(
     state: SAState, cost_matrix: np.ndarray, requests: List[Request], current_time: float
 ) -> float:
-    """
-    Função de avaliação global (Energia).
-    Soma custos de atribuição + Penalizações pesadas de Backlog.
-    """
     total_energy = 0.0
 
-    #  Custo das Atribuições
+    # Atribuições
     for v_idx, r_idx in enumerate(state.assignment):
         if r_idx != -1:
             c = cost_matrix[v_idx, r_idx]
@@ -206,16 +181,13 @@ def calculate_total_system_energy(
                 return float("inf")
             total_energy += c
 
-    # Custo do Backlog (Feedback dinâmico via Age)
+    # Backlog (Penalização)
     for r_idx in state.backlog:
         req = requests[r_idx]
         age = max(0, current_time - req.creation_time)
 
-        # VIPs no backlog custam muito mais (quadrático)
         prio_cost = (req.priority**2) * PlanningConfig.WEIGHT_PRIORITY
-        age_cost = (
-            age * PlanningConfig.WEIGHT_AGE * 1.5
-        )  # Age pesa mais no backlog que na atribuição
+        age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0  # Age pesa no backlog
 
         total_energy += PlanningConfig.BACKLOG_BASE_PENALTY + prio_cost + age_cost
 
@@ -226,20 +198,16 @@ def get_neighbor(
     state: SAState, num_vehicles: int, cost_matrix: np.ndarray, requests: List[Request]
 ) -> SAState:
     """
-    Gerador de vizinhos com operadores inteligentes.
-    Tenta 3x para garantir que não devolve o mesmo estado falhado.
+    Operadores com proteção de estabilidade.
     """
-    best_neighbor = state  # Fallback
-
-    # Tentativas de gerar algo válido
-    for _ in range(3):
+    for _ in range(3):  # Tentar 3x gerar válido
         new_state = state.copy()
         p = random.random()
 
         busy = [i for i, r in enumerate(new_state.assignment) if r != -1]
         free = [i for i, r in enumerate(new_state.assignment) if r == -1]
 
-        #  SWAP (25%) - Troca entre carros
+        # OP 1: SWAP (25%)
         if p < 0.25 and len(busy) >= 2:
             v1, v2 = random.sample(busy, 2)
             new_state.assignment[v1], new_state.assignment[v2] = (
@@ -248,7 +216,7 @@ def get_neighbor(
             )
             return new_state
 
-        # MOVE (25%) - Ocupado para Livre
+        # OP 2: MOVE (25%)
         elif p < 0.50 and busy and free:
             v_src = random.choice(busy)
             v_dst = random.choice(free)
@@ -258,19 +226,18 @@ def get_neighbor(
                 new_state.assignment[v_src] = -1
                 return new_state
 
-        # REPLACE (30%) - Backlog substitui Ocupado
+        # OP 3: REPLACE (30%)
         elif p < 0.80 and busy and new_state.backlog:
             v = random.choice(busy)
             r_new = random.choice(list(new_state.backlog))
             r_old = new_state.assignment[v]
-
             if cost_matrix[v, r_new] != float("inf"):
                 new_state.assignment[v] = r_new
                 new_state.backlog.remove(r_new)
                 new_state.backlog.add(r_old)
                 return new_state
 
-        # ADD (15%) - Backlog para Livre
+        # OP 4: ADD (15%)
         elif free and new_state.backlog:
             v = random.choice(free)
             r = random.choice(list(new_state.backlog))
@@ -279,15 +246,17 @@ def get_neighbor(
                 new_state.backlog.remove(r)
                 return new_state
 
-        # REMOVE (5%) - Proteção contra mínimos locais
-        # (Difícil remover VIPs)
+        # OP 5: REMOVE (5%) - Protegido
         elif busy:
-            v = random.choice(busy)
-            r = new_state.assignment[v]
-            if requests[r].priority < 4 or random.random() < 0.1:  # Só 10% chance se for VIP
-                new_state.assignment[v] = -1
-                new_state.backlog.add(r)
-                return new_state
+            # Só remove se backlog estiver controlado
+            if len(new_state.backlog) < num_vehicles * 3:
+                v = random.choice(busy)
+                r = new_state.assignment[v]
+                # Proteção VIP
+                if requests[r].priority < 4 or random.random() < 0.1:
+                    new_state.assignment[v] = -1
+                    new_state.backlog.add(r)
+                    return new_state
 
     return state
 
@@ -301,22 +270,33 @@ def simulated_annealing_solver(
     num_vehicles = cost_matrix.shape[0]
     num_requests = cost_matrix.shape[1]
 
-    # Estado Inicial Guloso (Preencher o máximo possível)
+    # Inicialização Estocástia
+    # Preenchimento com ruído para evitar mínimos locais logo no início.
     assign = [-1] * num_vehicles
     backlog = set(range(num_requests))
 
-    # Ordenar pedidos por prioridade para tentar encaixá-los primeiro
+    # Lista de candidatos ordenados
     sorted_req_indices = sorted(
         range(num_requests), key=lambda i: requests[i].priority, reverse=True
     )
 
     for r_idx in sorted_req_indices:
-        # Tentar encontrar um veículo livre
+        # Tenta atribuir ao primeiro veículo livre e viável
+        candidates = []
         for v_idx in range(num_vehicles):
             if assign[v_idx] == -1 and cost_matrix[v_idx, r_idx] != float("inf"):
-                assign[v_idx] = r_idx
-                backlog.remove(r_idx)
-                break
+                candidates.append(v_idx)
+
+        if candidates:
+            # Escolhe o melhor candidato com 80% chance, ou aleatório 20%
+            best_c = min(candidates, key=lambda v: cost_matrix[v, r_idx])
+            if random.random() < 0.8:
+                chosen_v = best_c
+            else:
+                chosen_v = random.choice(candidates)
+
+            assign[chosen_v] = r_idx
+            backlog.remove(r_idx)
 
     current_state = SAState(assign, backlog)
     current_energy = calculate_total_system_energy(
@@ -327,12 +307,13 @@ def simulated_annealing_solver(
     best_energy = current_energy
 
     temp = initial_temp
-    alpha = 0.97
+    alpha = 0.96 # Arrefecimento
 
-    # Reheating Logic
     stagnation_counter = 0
 
-    for i in range(1000):  # Iterações fixas
+    # Loop SA com Reheating
+    MAX_ITER = 1200
+    for i in range(MAX_ITER):
         neighbor = get_neighbor(current_state, num_vehicles, cost_matrix, requests)
         neighbor_energy = calculate_total_system_energy(
             neighbor, cost_matrix, requests, simulator.current_time
@@ -367,12 +348,12 @@ def simulated_annealing_solver(
             stagnation_counter += 1
 
         # Reheat se estagnado
-        if stagnation_counter > 150:
-            temp = min(temp * 1.5, initial_temp)
+        if stagnation_counter > 200:
+            temp = min(temp * 1.8, initial_temp)
             stagnation_counter = 0
             current_state = best_state.copy()  # Reset para o melhor conhecido
 
-        temp = max(temp * alpha, 0.01)
+        temp = max(temp * alpha, 0.05)
 
     return best_state.assignment
 
@@ -398,7 +379,7 @@ def assign_pending_requests(simulator: "Simulator"):
     num_vehicles = len(available_vehicles)
     num_requests = len(pending_requests)
 
-    # Verificar se há pedidos eco no backlog (para penalização de oportunidade)
+    # Verificar se há pedidos eco no backlog para penalização de oportunidade
     has_eco = any(r.environmental_preference for r in pending_requests)
 
     # Construção da Matriz de Custos Inteligente
@@ -409,7 +390,7 @@ def assign_pending_requests(simulator: "Simulator"):
         for j in range(num_requests):
             req = pending_requests[j]
 
-            # Filtros Absolutos (Hard Constraints)
+            # Filtros Absolutos
             if v.passenger_capacity < req.passenger_capacity:
                 continue
 
@@ -422,24 +403,19 @@ def assign_pending_requests(simulator: "Simulator"):
             cost = calculate_detailed_cost(v, req, path_info, simulator, has_eco)
             cost_matrix[i, j] = cost
 
-    # Se tudo for impossível, sair
     if np.all(cost_matrix == float("inf")):
         return
 
-    # Configuração Dinâmica do SA
-    # Se houver VIPs (>3) ou backlog grande, aumentamos a temperatura inicial (Reheat)
-    initial_temp = 200.0
+    # Configuração Dinâmica, reheat inicial se houver VIPs
+    initial_temp = 250.0
     max_prio = max(r.priority for r in pending_requests)
-    if max_prio >= 4 or len(pending_requests) > num_vehicles * 2:
-        print(f"[Planner] Modo Alta Intensidade Ativado (VIP/Backlog)")
-        initial_temp = 400.0
+    if max_prio >= 4 or len(pending_requests) > num_vehicles:
+        initial_temp = 450.0
 
-    # Executar SA
     final_assignment = simulated_annealing_solver(
         simulator, cost_matrix, pending_requests, initial_temp
     )
 
-    # Aplicar Resultados
     assignments_to_make = []
     for v_idx, r_idx in enumerate(final_assignment):
         if r_idx != -1:
@@ -460,9 +436,8 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
     v.request = request
     v.condition = VehicleCondition.ON_WAY_TO_CLIENT
 
-    # Log mais rico para debug
     dist_str = f"{v.remaining_km:.0f}km"
-    print(f"[Atribuição] {v.id} -> {request.id} (Prio {request.priority}). Bat: {dist_str}")
+    print(f"[SA] {v.id} -> {request.id} (Prio {request.priority}). Bat: {dist_str}")
 
     path_info = find_a_star_route(simulator.map, v.position_node, request.start_node)
     if path_info:
@@ -471,7 +446,6 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
         v.current_segment_index = 0
         v.current_segment_progress_time = 0.0
     else:
-        # Fallback de erro
         v.request = None
         v.condition = VehicleCondition.AVAILABLE
         if request in simulator.requests_to_pickup:
@@ -480,7 +454,6 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
 
 
 def generate_new_requests_if_needed(simulator: "Simulator"):
-    # Lógica original de geração
     from mapGen import generate_random_request
 
     total = (
@@ -488,11 +461,9 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
         + len(simulator.requests_to_pickup)
         + len(simulator.requests_to_dropoff)
     )
+    target = max(5, int(len(simulator.vehicles) * 0.8))
 
-    # Mantém um nível mínimo de pressão no sistema
-    target_requests = max(5, int(len(simulator.vehicles) * 0.8))
-
-    if total < simulator.NUM_INITIAL_REQUESTS or len(simulator.requests) < target_requests:
+    if total < simulator.NUM_INITIAL_REQUESTS or len(simulator.requests) < target:
         num = simulator.NUM_REQUESTS_TO_GENERATE
         for _ in range(num):
             simulator.requests.append(
