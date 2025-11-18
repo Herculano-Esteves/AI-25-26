@@ -10,6 +10,13 @@ from graph import CityGraph
 # A* Helper Functions
 
 
+# Time calculation
+def calculate_time_minutes(distance_km: float, speed_kmh: float) -> float:
+    if speed_kmh <= 0:
+        return float("inf")
+    return (distance_km / speed_kmh) * 60.0
+
+
 def _haversine_km(lon_a, lat_a, lon_b, lat_b):
     R = 6371.0  # Earth radius
     phi1 = math.radians(lat_a)
@@ -26,10 +33,11 @@ def _heuristic_distance(a: Node, b: Node) -> float:
     (lon2, lat2) = b.position
 
     distance_km = _haversine_km(lon1, lat1, lon2, lat2)
-    # heuristic in minutes: average speed 30 km/h
-    # minutes = km / (km/h) * 60
-    avg_speed_kmh = 30.0
-    return (distance_km / avg_speed_kmh) * 60.0
+
+    # Heuristic Admissibility
+    max_possible_speed_kmh = 120.0
+
+    return calculate_time_minutes(distance_km, max_possible_speed_kmh)
 
 
 def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:
@@ -47,16 +55,16 @@ def find_a_star_route(
     map: CityGraph, start_node: Node, end_node: Node
 ) -> Optional[Tuple[List[Node], float, float]]:
     # returns (path, total_time, total_distance)
+
     closed_set: Set[Node] = set()
     open_set = []
     # Heap stores: (f_score, hash(node), node)
     heapq.heappush(open_set, (0, hash(start_node), start_node))
-    open_set_map = {start_node}
 
-    # came_from: Dictionary to reconstruct the path.
+    open_set_map = {start_node}
     came_from: Dict[Node, Node] = {}
 
-    # Default lazy initialization.
+    # Lazy initialization
     g_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     g_score[start_node] = 0.0
 
@@ -68,13 +76,12 @@ def find_a_star_route(
 
     while open_set:
 
-        # Get the node from the priority queue with the lowest f_score
+        # Node from the priority queue with the lowest f_score
         current_f, _, current = heapq.heappop(open_set)
 
         if current in open_set_map:
             open_set_map.remove(current)
 
-        # End
         if current == end_node:
             path = _reconstruct_path(came_from, current)
             total_time = g_score[current]
@@ -85,7 +92,6 @@ def find_a_star_route(
 
         # Explore Neighbors
         for neighbor in map.get_node_neighbours(current):
-            # Ignore neighbors already explored
             if neighbor in closed_set:
                 continue
 
@@ -94,17 +100,16 @@ def find_a_star_route(
             if edge_info is None:
                 continue
 
-            # A* optimizes by *time* (index 1)
+            # A* optimizes by *time*
             edge_distance, edge_time, _ = edge_info
 
             # Calculate the 'g' cost (time)
             tentative_g_score = g_score[current] + edge_time
 
-            # Check if this is a better path (in terms of time)
+            # Check if this is a better path
             if tentative_g_score < g_score[neighbor]:
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g_score
-                # Also update the distance for this new fastest path
                 d_score[neighbor] = d_score[current] + edge_distance
 
                 f_score[neighbor] = tentative_g_score + _heuristic_distance(neighbor, end_node)
@@ -112,5 +117,5 @@ def find_a_star_route(
                 if neighbor not in open_set_map:
                     heapq.heappush(open_set, (f_score[neighbor], hash(neighbor), neighbor))
                     open_set_map.add(neighbor)
-    # No path found
+
     return None

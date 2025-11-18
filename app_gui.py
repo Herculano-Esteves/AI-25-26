@@ -2,14 +2,16 @@ import tkinter as tk
 from tkinter import ttk
 from models.vehicle import Motor
 from Simulation.simulator import Simulator
+from Simulation.request_simulation import PlanningConfig
 
 import os
+import time
 from PIL import Image, ImageTk
 
 
 class MapApplication:
     # GUI constants
-    TICK_RATE_MS = 5
+    TICK_RATE_MS = 50
 
     # Navigation constants
     ZOOM_IN_FACTOR = 1.2  # Zoom-in
@@ -30,8 +32,8 @@ class MapApplication:
 
     def __init__(self, root):
         self.root = root
-        self.root.title("Simulador de Frota")
-        self.root.geometry("1400x1000")
+        self.root.title("Simulador de Frota - Painel de Controlo")
+        self.root.geometry("1600x1000")
 
         self.sprite_cache = {}
         try:
@@ -43,8 +45,14 @@ class MapApplication:
             return
 
         self.simulator = Simulator()
-
         self.simulation_running = False
+
+        # FPS Tracking
+        self.last_frame_time = time.time()
+        self.fps_avg = 0.0
+
+        # Speed Control Variable
+        self.speed_var = tk.DoubleVar(value=1.0)
 
         # Camera variables
         self.offset_x = 0.0
@@ -64,312 +72,275 @@ class MapApplication:
         self.reset_view()
 
     def _create_interface(self):
-        # Buttons frame
-        control_frame = ttk.Frame(self.root)
+        # TOP CONTROL BAR
+        control_frame = ttk.LabelFrame(self.root, text="Controlos de Simulação")
         control_frame.pack(side=tk.TOP, fill=tk.X, pady=5, padx=5)
 
+        # Buttons
+        btn_frame = ttk.Frame(control_frame)
+        btn_frame.pack(side=tk.LEFT, padx=10)
+
         self.btn_generate_map = ttk.Button(
-            control_frame, text="Gerar Novo Mapa", command=self.setup_new_map
+            btn_frame, text="Gerar Novo Mapa", command=self.setup_new_map
         )
-        self.btn_generate_map.pack(side=tk.LEFT, padx=5)
+        self.btn_generate_map.pack(side=tk.LEFT, padx=2)
 
-        self.btn_reset_view = ttk.Button(
-            control_frame, text="Resetar View", command=self.reset_view
-        )
-        self.btn_reset_view.pack(side=tk.LEFT, padx=5)
+        self.btn_reset_view = ttk.Button(btn_frame, text="Resetar View", command=self.reset_view)
+        self.btn_reset_view.pack(side=tk.LEFT, padx=2)
 
-        self.btn_start_sim = ttk.Button(
-            control_frame, text="Iniciar Simulação", command=self.start_simulation
-        )
-        self.btn_start_sim.pack(side=tk.LEFT, padx=5)
+        self.btn_start_sim = ttk.Button(btn_frame, text="▶ Iniciar", command=self.start_simulation)
+        self.btn_start_sim.pack(side=tk.LEFT, padx=2)
 
         self.btn_stop_sim = ttk.Button(
-            control_frame,
-            text="Parar Simulação",
+            btn_frame,
+            text="⏹ Parar",
             command=self.stop_simulation,
             state=tk.DISABLED,
         )
-        self.btn_stop_sim.pack(side=tk.LEFT, padx=5)
+        self.btn_stop_sim.pack(side=tk.LEFT, padx=2)
 
-        # Style for the clock
+        # FPS Label
+        self.fps_label = ttk.Label(control_frame, text="FPS: 0", font=("Consolas", 10))
+        self.fps_label.pack(side=tk.RIGHT, padx=15)
+
+        # Clock
         ttk.Style().configure("Clock.TLabel", font=("Arial", 16, "bold"))
-
         self.clock_label = ttk.Label(
             control_frame, text="Ano 0 - Dia 0 - 00:00", style="Clock.TLabel"
         )
         self.clock_label.pack(side=tk.RIGHT, padx=15)
 
-        # PanedWindow
+        # MAIN SPLIT VIEW
         self.main_paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
         self.main_paned_window.pack(side=tk.BOTTOM, fill=tk.BOTH, expand=True)
 
-        # Map
+        # Map Area
         map_frame = ttk.Frame(self.main_paned_window)
         map_frame.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
-        self.main_paned_window.add(map_frame, weight=3)  # Map gets 3/4 space
+        self.main_paned_window.add(map_frame, weight=4)
 
         # Tkinter Map "Canvas"
         self.canvas = tk.Canvas(map_frame, bg=self.BG_COLOR, cursor="crosshair")
         self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
 
-        # Stats Panel
-        self._create_stats_panel()
-        self.main_paned_window.add(self.stats_frame, weight=1)  # Stats get 1/4 space
+        # Stats/Config Panel
+        self._create_right_panel()
+        self.main_paned_window.add(self.stats_frame, weight=1)
 
-    def _create_stats_panel(self):
-        self.stats_frame = ttk.Frame(self.main_paned_window, width=400)
+    def _create_right_panel(self):
+        self.stats_frame = ttk.Frame(self.main_paned_window, width=450)
         self.stats_frame.pack(fill=tk.BOTH, expand=True)
 
         # Notebook
-        notebook = ttk.Notebook(self.stats_frame)
-        notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
+        self.notebook = ttk.Notebook(self.stats_frame)
+        self.notebook.pack(fill=tk.BOTH, expand=True, pady=5, padx=5)
 
-        # Vehicles
-        vehicle_tab = ttk.Frame(notebook)
-        notebook.add(vehicle_tab, text="Frota (Veículos)")
+        # Vehicles Tab
+        self._create_vehicle_tab()
 
-        # Treeview for vehicle
+        # Requests Tab
+        self._create_request_tab()
+
+        # Metrics Tab
+        self._create_metrics_tab()
+
+        # Configuration Tab
+        self._create_config_tab()
+
+    def _create_vehicle_tab(self):
+        vehicle_tab = ttk.Frame(self.notebook)
+        self.notebook.add(vehicle_tab, text="Frota")
+
         cols = ("id", "status", "autonomy", "request", "motor", "capacidade", "avarias")
         self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
 
-        self.vehicle_tree.heading("id", text="ID")
-        self.vehicle_tree.heading("status", text="Estado")
-        self.vehicle_tree.heading("autonomy", text="Autonomia")
-        self.vehicle_tree.heading("request", text="Pedido")
-        self.vehicle_tree.heading("motor", text="Motor")
-        self.vehicle_tree.heading("capacidade", text="Cap.")
-        self.vehicle_tree.heading("avarias", text="Avaria")
+        # Headers
+        headers = {
+            "id": ("ID", 40),
+            "status": ("Estado", 100),
+            "autonomy": ("Bat.", 70),
+            "request": ("Req.", 40),
+            "motor": ("Tipo", 60),
+            "capacidade": ("Cap.", 40),
+            "avarias": ("⚠", 30),
+        }
+        for col, (text, width) in headers.items():
+            self.vehicle_tree.heading(col, text=text)
+            self.vehicle_tree.column(col, width=width)
 
-        self.vehicle_tree.column("id", width=40)
-        self.vehicle_tree.column("status", width=120)
-        self.vehicle_tree.column("autonomy", width=90)
-        self.vehicle_tree.column("request", width=60)
-        self.vehicle_tree.column("motor", width=65)
-        self.vehicle_tree.column("capacidade", width=40)
-        self.vehicle_tree.column("avarias", width=40)
-
-        # Sscrollbar
         scrollbar = ttk.Scrollbar(vehicle_tab, orient=tk.VERTICAL, command=self.vehicle_tree.yview)
         self.vehicle_tree.configure(yscrollcommand=scrollbar.set)
-
         scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.vehicle_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Requests
-        request_tab = ttk.Frame(notebook)
-        notebook.add(request_tab, text="Pedidos")
+    def _create_request_tab(self):
+        request_tab = ttk.Frame(self.notebook)
+        self.notebook.add(request_tab, text="Pedidos")
 
-        # Treeview for request
         req_cols = ("id", "status", "from", "to", "pax", "pref")
         self.request_tree = ttk.Treeview(request_tab, columns=req_cols, show="headings")
 
-        self.request_tree.heading("id", text="ID")
-        self.request_tree.heading("status", text="Estado")
-        self.request_tree.heading("from", text="Origem")
-        self.request_tree.heading("to", text="Destino")
-        self.request_tree.heading("pax", text="Cap.")
-        self.request_tree.heading("pref", text="Pref.")
+        headers = {
+            "id": ("ID", 40),
+            "status": ("Estado", 80),
+            "from": ("Origem", 70),
+            "to": ("Destino", 70),
+            "pax": ("Pax", 30),
+            "pref": ("Eco", 30),
+        }
+        for col, (text, width) in headers.items():
+            self.request_tree.heading(col, text=text)
+            self.request_tree.column(col, width=width)
 
-        self.request_tree.column("id", width=40)
-        self.request_tree.column("status", width=100)
-        self.request_tree.column("from", width=80)
-        self.request_tree.column("to", width=80)
-        self.request_tree.column("pax", width=40)
-        self.request_tree.column("pref", width=60)
-
-        # Scrollbar
         req_scrollbar = ttk.Scrollbar(
             request_tab, orient=tk.VERTICAL, command=self.request_tree.yview
         )
         self.request_tree.configure(yscrollcommand=req_scrollbar.set)
-
         req_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.request_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
 
-        # Statics bar
-        stats_tab = ttk.Frame(notebook)
-        notebook.add(stats_tab, text="Métricas")
+    def _create_metrics_tab(self):
+        stats_tab = ttk.Frame(self.notebook)
+        self.notebook.add(stats_tab, text="Métricas")
 
         stats_label_frame = ttk.Frame(stats_tab)
         stats_label_frame.pack(fill=tk.BOTH, expand=True, padx=10, pady=10)
 
         self.stats_labels = {}
-        row_idx = 0
 
-        # Frame stats
-        self.stats_labels["step_header"] = ttk.Label(
-            stats_label_frame, text="Snapshot da Iteração", font=("Arial", 12, "bold")
+        # Create stat rows
+        curr_row = 0
+
+        def add_stat_row(key, label_text, init_val, header=False):
+            nonlocal curr_row
+            if header:
+                lbl = ttk.Label(stats_label_frame, text=label_text, font=("Arial", 11, "bold"))
+                lbl.grid(
+                    row=curr_row,
+                    column=0,
+                    columnspan=2,
+                    sticky=tk.W,
+                    pady=(10 if curr_row > 0 else 0, 5),
+                )
+                self.stats_labels[key] = lbl
+            else:
+                lbl_t = ttk.Label(stats_label_frame, text=label_text)
+                lbl_t.grid(row=curr_row, column=0, sticky=tk.W)
+                lbl_v = ttk.Label(stats_label_frame, text=init_val, font=("Arial", 10))
+                lbl_v.grid(row=curr_row, column=1, sticky=tk.W, padx=5)
+                self.stats_labels[key] = lbl_v
+            curr_row += 1
+
+        add_stat_row("h1", "Em Tempo Real (Snapshot)", "", True)
+        add_stat_row("step_cost", "Custo Op. Instantâneo:", "€0.00")
+        add_stat_row("step_revenue", "Receita Instantânea:", "€0.00")
+        add_stat_row("step_pending_req", "Pendentes na Fila:", "0")
+        add_stat_row("step_vehicles_busy", "Veículos Ativos:", "0")
+
+        # Financials
+        add_stat_row("h2", "Desempenho Financeiro", "", True)
+        add_stat_row("total_revenue", "Receita Total:", "€0.00")
+        add_stat_row("total_cost", "Custo Op. Total:", "€0.00")
+        add_stat_row("total_profit", "Lucro Líquido:", "€0.00")
+
+        # Operations
+        add_stat_row("h3", "Eficiência Operacional", "", True)
+        add_stat_row("total_requests", "Pedidos (Ok/Fail):", "0 / 0")
+        add_stat_row("kms_empty", "Km Vazios (%):", "0%")
+
+        # Times
+        add_stat_row("h4", "Tempo de Serviço (Minutos)", "", True)
+        add_stat_row("avg_wait_time", "Espera Média (Recolha):", "0.0 min")
+        add_stat_row("range_wait_time", "Espera [Mín - Máx]:", "0.0 - 0.0")
+        add_stat_row("avg_trip_time", "Viagem Média (Entrega):", "0.0 min")
+        add_stat_row("range_trip_time", "Viagem [Mín - Máx]:", "0.0 - 0.0")
+
+    def _create_config_tab(self):
+        """
+        Creates controls to change simulation variables dynamically.
+        """
+        config_tab = ttk.Frame(self.notebook)
+        self.notebook.add(config_tab, text="Configurações")
+
+        scroll = ttk.Scrollbar(config_tab)
+        scroll.pack(side=tk.RIGHT, fill=tk.Y)
+
+        canvas = tk.Canvas(config_tab, yscrollcommand=scroll.set)
+        canvas.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
+        scroll.config(command=canvas.yview)
+
+        inner_frame = ttk.Frame(canvas)
+        canvas.create_window((0, 0), window=inner_frame, anchor="nw")
+
+        def update_scroll(event):
+            canvas.configure(scrollregion=canvas.bbox("all"))
+
+        inner_frame.bind("<Configure>", update_scroll)
+
+        # Speed control
+        ttk.Label(inner_frame, text="Controlo da Simulação", font=("Arial", 12, "bold")).pack(
+            pady=(10, 5), anchor=tk.W, padx=5
         )
-        self.stats_labels["step_header"].grid(
-            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(0, 5)
+
+        speed_frame = ttk.LabelFrame(inner_frame, text="Velocidade do Tempo")
+        speed_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        self.speed_scale = tk.Scale(
+            speed_frame,
+            from_=0.1,
+            to=10.0,
+            orient=tk.HORIZONTAL,
+            variable=self.speed_var,
+            resolution=0.1,
+            label="Multiplicador (x)",
         )
-        row_idx += 1
+        self.speed_scale.pack(fill=tk.X, padx=5, pady=5)
 
-        # Search cost
-        self.stats_labels["step_assign_cost_label"] = ttk.Label(
-            stats_label_frame, text="Custo Procura (Atrib.):"
+        # Tuning section
+        ttk.Label(
+            inner_frame, text="Pesos do Planeamento (Ao Vivo)", font=("Arial", 12, "bold")
+        ).pack(pady=(15, 5), anchor=tk.W, padx=5)
+
+        def create_config_slider(label_text, config_attr, min_val, max_val, resolution=1.0):
+            frame = ttk.Frame(inner_frame)
+            frame.pack(fill=tk.X, padx=10, pady=2)
+
+            current_val = getattr(PlanningConfig, config_attr)
+
+            lbl = ttk.Label(frame, text=f"{label_text}: {current_val}")
+            lbl.pack(anchor=tk.W)
+
+            def on_change(val):
+                new_val = float(val)
+                setattr(PlanningConfig, config_attr, new_val)
+                lbl.config(text=f"{label_text}: {new_val:.1f}")
+
+            scale = tk.Scale(
+                frame,
+                from_=min_val,
+                to=max_val,
+                orient=tk.HORIZONTAL,
+                resolution=resolution,
+                command=on_change,
+            )
+            scale.set(current_val)
+            scale.pack(fill=tk.X)
+
+        # Sliders
+        create_config_slider("Peso: Tempo Viagem", "WEIGHT_TIME", 0.1, 10.0, 0.1)
+        create_config_slider("Peso: Prioridade", "WEIGHT_PRIORITY", 0, 100, 1)
+        create_config_slider("Peso: Tempo Espera (Age)", "WEIGHT_AGE", 0.1, 20.0, 0.1)
+
+        ttk.Separator(inner_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+
+        create_config_slider(
+            "Penalidade: Eco Mismatch (/km)", "PENALTY_ENV_MISMATCH_PER_KM", 0, 100, 1
         )
-        self.stats_labels["step_assign_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_assign_cost"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["step_assign_cost"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
+        create_config_slider("Penalidade: Lugar Vazio", "PENALTY_UNUSED_SEAT", 0, 20, 1)
+        create_config_slider("Penalidade: Risco Bateria", "WEIGHT_BATTERY_RISK", 0, 100, 1)
 
-        # Operacional cost
-        self.stats_labels["step_cost_label"] = ttk.Label(
-            stats_label_frame, text="Custo Op. (Iteração):"
-        )
-        self.stats_labels["step_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_cost"] = ttk.Label(stats_label_frame, text="€0.00")
-        self.stats_labels["step_cost"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Profit
-        self.stats_labels["step_revenue_label"] = ttk.Label(
-            stats_label_frame, text="Receita (Iteração):"
-        )
-        self.stats_labels["step_revenue_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_revenue"] = ttk.Label(stats_label_frame, text="€0.00")
-        self.stats_labels["step_revenue"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Pending Requests
-        self.stats_labels["step_pending_req_label"] = ttk.Label(
-            stats_label_frame, text="Pedidos Pendentes:"
-        )
-        self.stats_labels["step_pending_req_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_pending_req"] = ttk.Label(stats_label_frame, text="0")
-        self.stats_labels["step_pending_req"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Avaliable vehicles
-        self.stats_labels["step_vehicles_avail_label"] = ttk.Label(
-            stats_label_frame, text="Veículos Livres:"
-        )
-        self.stats_labels["step_vehicles_avail_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_vehicles_avail"] = ttk.Label(stats_label_frame, text="0")
-        self.stats_labels["step_vehicles_avail"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Unavailabe Vehicles
-        self.stats_labels["step_vehicles_busy_label"] = ttk.Label(
-            stats_label_frame, text="Veículos Ocupados:"
-        )
-        self.stats_labels["step_vehicles_busy_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["step_vehicles_busy"] = ttk.Label(stats_label_frame, text="0")
-        self.stats_labels["step_vehicles_busy"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Total stats
-        self.stats_labels["total_header"] = ttk.Label(
-            stats_label_frame, text="Desempenho Acumulado", font=("Arial", 12, "bold")
-        )
-        self.stats_labels["total_header"].grid(
-            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(15, 5)
-        )
-        row_idx += 1
-
-        # Money related
-        self.stats_labels["total_revenue_label"] = ttk.Label(
-            stats_label_frame, text="Receita Total:"
-        )
-        self.stats_labels["total_revenue_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["total_revenue"] = ttk.Label(stats_label_frame, text="€0.00")
-        self.stats_labels["total_revenue"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["total_cost_label"] = ttk.Label(
-            stats_label_frame, text="Custo Op. Total:"
-        )
-        self.stats_labels["total_cost_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["total_cost"] = ttk.Label(stats_label_frame, text="€0.00")
-        self.stats_labels["total_cost"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["total_profit_label"] = ttk.Label(stats_label_frame, text="Lucro Total:")
-        self.stats_labels["total_profit_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["total_profit"] = ttk.Label(stats_label_frame, text="€0.00")
-        self.stats_labels["total_profit"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Requests
-        self.stats_labels["total_requests_label"] = ttk.Label(
-            stats_label_frame, text="Pedidos (Comp./Falh.):"
-        )
-        self.stats_labels["total_requests_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["total_requests"] = ttk.Label(stats_label_frame, text="0 / 0")
-        self.stats_labels["total_requests"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Kms
-        self.stats_labels["kms_empty_label"] = ttk.Label(stats_label_frame, text="Kms Vazios (%):")
-        self.stats_labels["kms_empty_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["kms_empty"] = ttk.Label(stats_label_frame, text="0.0% (0 km)")
-        self.stats_labels["kms_empty"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Wait time
-        self.stats_labels["wait_time_header"] = ttk.Label(
-            stats_label_frame,
-            text="Tempo de Espera (Criação -> Recolha)",
-            font=("Arial", 10, "bold"),
-        )
-        self.stats_labels["wait_time_header"].grid(
-            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
-        )
-        row_idx += 1
-
-        self.stats_labels["avg_wait_time_label"] = ttk.Label(
-            stats_label_frame, text="Espera Média:"
-        )
-        self.stats_labels["avg_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["avg_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["avg_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["min_wait_time_label"] = ttk.Label(stats_label_frame, text="Espera Mín:")
-        self.stats_labels["min_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["min_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["min_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["max_wait_time_label"] = ttk.Label(stats_label_frame, text="Espera Máx:")
-        self.stats_labels["max_wait_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["max_wait_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["max_wait_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Trip Time
-        self.stats_labels["trip_time_header"] = ttk.Label(
-            stats_label_frame,
-            text="Tempo de Pedido (Criação -> Entrega)",
-            font=("Arial", 10, "bold"),
-        )
-        self.stats_labels["trip_time_header"].grid(
-            row=row_idx, column=0, columnspan=2, sticky=tk.W, pady=(10, 0)
-        )
-        row_idx += 1
-
-        self.stats_labels["avg_time_label"] = ttk.Label(stats_label_frame, text="Pedido Médio:")
-        self.stats_labels["avg_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["avg_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["avg_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["min_trip_time_label"] = ttk.Label(stats_label_frame, text="Pedido Mín:")
-        self.stats_labels["min_trip_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["min_trip_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["min_trip_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        self.stats_labels["max_trip_time_label"] = ttk.Label(stats_label_frame, text="Pedido Máx:")
-        self.stats_labels["max_trip_time_label"].grid(row=row_idx, column=0, sticky=tk.W)
-        self.stats_labels["max_trip_time"] = ttk.Label(stats_label_frame, text="0.0 min")
-        self.stats_labels["max_trip_time"].grid(row=row_idx, column=1, sticky=tk.W)
-        row_idx += 1
-
-        # Style
-        ttk.Style().configure("Stats.TLabel", font=("Arial", 12))
-        ttk.Style().configure("StatsVal.TLabel", font=("Arial", 12, "bold"))
+        ttk.Separator(inner_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
+        create_config_slider("Peso: Custo Oportunidade (EV)", "WEIGHT_LOST_OPPORTUNITY", 0, 200, 5)
 
     def _setup_bindings(self):
         # Linux only
@@ -399,10 +370,8 @@ class MapApplication:
         for name, filename in sprite_files.items():
             try:
                 img_path = os.path.join(image_path, filename)
-
                 img = Image.open(img_path)
                 img = img.resize(new_size, Image.Resampling.LANCZOS)
-
                 self.sprite_cache[name] = ImageTk.PhotoImage(img)
 
             except FileNotFoundError:
@@ -482,6 +451,7 @@ class MapApplication:
             return
         print("A iniciar simulação...")
         self.simulation_running = True
+        self.last_frame_time = time.time()
 
         self.btn_start_sim.config(state=tk.DISABLED)
         self.btn_stop_sim.config(state=tk.NORMAL)
@@ -503,120 +473,134 @@ class MapApplication:
         if not self.simulation_running:
             return
 
-        self.simulator.simulation_step()  # 1 simulation frame
-        self.update_dynamic_visuals()  # Visual update
-        self._update_stats_panel()  # Update stats panel
-        self._update_clock()  # Update clock
-        self.root.after(self.TICK_RATE_MS, self._simulation_gui_loop)  # Next frame
+        # FPS
+        current_time = time.time()
+        delta_time = current_time - self.last_frame_time
+        self.last_frame_time = current_time
+
+        if delta_time > 0:
+            instant_fps = 1.0 / delta_time
+            self.fps_avg = 0.9 * self.fps_avg + 0.1 * instant_fps
+            if int(current_time * 10) % 5 == 0:
+                self.fps_label.config(text=f"FPS: {self.fps_avg:.1f}")
+
+        # Speed Multiplier from Slider
+        speed_mult = self.speed_var.get()
+
+        # Step Simulation
+        self.simulator.simulation_step(time_multiplier=speed_mult)
+
+        # Update Visuals
+        self.update_dynamic_visuals()
+        self._update_stats_panel()
+        self._update_clock()
+
+        self.root.after(self.TICK_RATE_MS, self._simulation_gui_loop)
 
     def _update_stats_panel(self):
         if not self.simulator:
             return
 
         # Update Vehicle Tab
-        self.vehicle_tree.delete(*self.vehicle_tree.get_children())  # Clear old data
+        self.vehicle_tree.delete(*self.vehicle_tree.get_children())
         for v in self.simulator.vehicles:
-            autonomy_str = f"{v.remaining_km:.1f} / {v.max_km:.0f} km"
+            autonomy_str = f"{v.remaining_km:.0f}/{v.max_km:.0f}"
             request_id = v.request.id if v.request else "---"
             status_str = v.condition.name.replace("_", " ").title()
+            if status_str == "Unavailable":
+                status_str = "Quebrado"
 
             values = (
                 v.id,
                 status_str,
                 autonomy_str,
                 request_id,
-                v.motor.name.title(),
+                v.motor.name[0:4],  # ELEC/COMB
                 v.passenger_capacity,
                 v.times_borken,
             )
             self.vehicle_tree.insert("", tk.END, values=values)
 
         # Update Request Tab
-        self.request_tree.delete(*self.request_tree.get_children())  # Clear old data
+        self.request_tree.delete(*self.request_tree.get_children())
 
-        def format_request_values(req, status):
-            pref_str = "EV" if req.environmental_preference else "---"
-            return (
-                req.id,
-                status,
-                str(req.start_node.position),
-                str(req.end_node.position),
-                req.passenger_capacity,
-                pref_str,
-            )
+        req_list = []
 
-        # Requests from all three lists
-        lista = list()
-        for r in self.simulator.requests:
-            lista.append(format_request_values(r, "Pendente"))
+        def add_reqs(source_list, status_code):
+            for r in source_list:
+                pref_str = "Sim" if r.environmental_preference else "-"
+                req_list.append(
+                    (
+                        r.id,
+                        status_code,
+                        f"{r.start_node.position}",
+                        f"{r.end_node.position}",
+                        r.passenger_capacity,
+                        pref_str,
+                    )
+                )
 
-        for r in self.simulator.requests_to_pickup:
-            lista.append(format_request_values(r, "Apanhar"))
+        add_reqs(self.simulator.requests, "Pendente")
+        add_reqs(self.simulator.requests_to_pickup, "Apanhar")
+        add_reqs(self.simulator.requests_to_dropoff, "Viagem")
 
-        for r in self.simulator.requests_to_dropoff:
-            lista.append(format_request_values(r, "Viagem"))
-
-        for r in sorted(lista):
+        # Sort by ID
+        req_list.sort(key=lambda x: x[0])
+        for r in req_list:
             self.request_tree.insert("", tk.END, values=r)
 
-        self._update_stats_tab()
+        self._update_metrics_values()
 
-    def _update_stats_tab(self):
+    def _update_metrics_values(self):
         stats = self.simulator.stats
+        labels = self.stats_labels
 
-        # Frame stats
-        self.stats_labels["step_assign_cost"].config(text=f"{stats.step_assignment_cost:,.1f} min")
-        self.stats_labels["step_cost"].config(text=f"€{stats.step_operational_cost:,.2f}")
-        self.stats_labels["step_revenue"].config(text=f"€{stats.step_revenue_generated:,.2f}")
-        self.stats_labels["step_pending_req"].config(text=f"{stats.step_pending_requests}")
-        self.stats_labels["step_vehicles_avail"].config(text=f"{stats.step_vehicles_available}")
+        # Snapshot
+        labels["step_cost"].config(text=f"€{stats.step_operational_cost:,.2f}")
+        labels["step_revenue"].config(text=f"€{stats.step_revenue_generated:,.2f}")
+        labels["step_pending_req"].config(text=f"{stats.step_pending_requests}")
 
-        # Unavailabe Vehicles
-        busy_vehicles = (
+        busy_vs = (
             stats.step_vehicles_on_trip
             + stats.step_vehicles_charging
             + stats.step_vehicles_unavailable
         )
-        self.stats_labels["step_vehicles_busy"].config(text=f"{busy_vehicles}")
+        labels["step_vehicles_busy"].config(text=f"{busy_vs}")
 
-        # Total stats
+        # Financials
+        labels["total_revenue"].config(text=f"€{stats.total_revenue_generated:,.2f}")
+        labels["total_cost"].config(text=f"€{stats.total_operational_cost:,.2f}")
+        profit = stats.total_revenue_generated - stats.total_operational_cost
+        labels["total_profit"].config(text=f"€{profit:,.2f}")
 
-        # Money related
-        self.stats_labels["total_revenue"].config(text=f"€{stats.total_revenue_generated:,.2f}")
-        self.stats_labels["total_cost"].config(text=f"€{stats.total_operational_cost:,.2f}")
-        total_profit = stats.total_revenue_generated - stats.total_operational_cost
-        self.stats_labels["total_profit"].config(text=f"€{total_profit:,.2f}")
+        # Operations
+        labels["total_requests"].config(
+            text=f"{stats.total_requests_completed} / {stats.total_requests_failed}"
+        )
 
-        # Requests
-        req_str = f"{stats.total_requests_completed} / {stats.total_requests_failed}"
-        self.stats_labels["total_requests"].config(text=req_str)
-
-        # % km empty
         empty_ratio = 0.0
         if stats.total_kms_driven > 0:
             empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven) * 100
-        empty_str = f"{empty_ratio:,.1f}% ({stats.total_kms_driven_empty:,.0f} km)"
-        self.stats_labels["kms_empty"].config(text=empty_str)
+        labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
 
-        # Wait time for pick up
-        avg_wait_time = 0.0
+        # Times
+        # Wait time (Creation -> Pickup)
+        avg_wait = 0.0
         if stats.total_requests_picked_up > 0:
-            avg_wait_time = stats.total_wait_time_for_pickup / stats.total_requests_picked_up
-        self.stats_labels["avg_wait_time"].config(text=f"{avg_wait_time:,.1f} min")
+            avg_wait = stats.total_wait_time_for_pickup / stats.total_requests_picked_up
+        labels["avg_wait_time"].config(text=f"{avg_wait:.1f} min")
 
         min_wait = 0.0 if stats.min_wait_time == float("inf") else stats.min_wait_time
-        self.stats_labels["min_wait_time"].config(text=f"{min_wait:,.1f} min")
-        self.stats_labels["max_wait_time"].config(text=f"{stats.max_wait_time:,.1f} min")
+        labels["range_wait_time"].config(text=f"{min_wait:.1f} - {stats.max_wait_time:.1f}")
 
-        # Total request time
-        avg_time = 0.0
+        # Trip time (Creation -> Dropoff)
+        avg_trip = 0.0
         if stats.total_requests_completed > 0:
-            avg_time = stats.total_time_for_completed_requests / stats.total_requests_completed
-        self.stats_labels["avg_time"].config(text=f"{avg_time:,.1f} min")
+            avg_trip = stats.total_time_for_completed_requests / stats.total_requests_completed
+        labels["avg_trip_time"].config(text=f"{avg_trip:.1f} min")
 
         min_trip = 0.0 if stats.min_total_trip_time == float("inf") else stats.min_total_trip_time
-        self.stats_labels["min_trip_time"].config(text=f"{min_trip:,.1f} min")
-        self.stats_labels["max_trip_time"].config(text=f"{stats.max_total_trip_time:,.1f} min")
+        labels["range_trip_time"].config(text=f"{min_trip:.1f} - {stats.max_total_trip_time:.1f}")
 
     def _update_clock(self):
         current_day, current_hour, current_minute, current_year = (

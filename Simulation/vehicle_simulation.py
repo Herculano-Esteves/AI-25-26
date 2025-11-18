@@ -45,9 +45,8 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
             v.current_route = []
             break
 
-        segment_distance, segment_total_time, _ = edge_info
+        segment_distance, segment_total_time, segment_max_speed = edge_info
 
-        # Distance
         speed_km_per_min = 0.0
         if segment_total_time > 0:
             speed_km_per_min = segment_distance / segment_total_time

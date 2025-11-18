@@ -21,7 +21,7 @@ class Simulator:
     MAP_WIDTH = 20
     MAP_HEIGHT = 20
     # Time constants
-    SIM_TIME_PER_TICK = 0.5  # Time in minutes per frame
+    SIM_TIME_PER_TICK = 1  # Base time in minutes per frame
     MINUTES_PER_HOUR = 60
     HOURS_PER_DAY = 24
     MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY
@@ -64,8 +64,12 @@ class Simulator:
 
         self.stats = SimulationStats()
 
-    def simulation_step(self):
-        time_to_advance = self.SIM_TIME_PER_TICK
+    def simulation_step(self, time_multiplier: float = 1.0):
+        """
+        Executes one step of simulation.
+        param time_multiplier: Multiplier for the time passage (1.0 = normal, 2.0 = double speed)
+        """
+        time_to_advance = self.SIM_TIME_PER_TICK * time_multiplier
 
         self.current_time += time_to_advance
         self.stats.reset_step_metrics()
