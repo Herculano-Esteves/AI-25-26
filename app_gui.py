@@ -424,7 +424,7 @@ class MapApplication:
                 center_lat = (min_lat + max_lat) / 2.0
 
                 self.offset_x = (canvas_w / 2.0) - (center_lon * self.zoom)
-                self.offset_y = (canvas_h / 2.0) - (center_lat * self.zoom)
+                self.offset_y = (canvas_h / 2.0) - (-center_lat * self.zoom)
 
                 self.redraw_full_canvas()
                 return
@@ -621,6 +621,7 @@ class MapApplication:
             self.canvas.coords(vehicle_tag, new_x, new_y)
         self._draw_requests()
         self._draw_station_overlays()
+        self._draw_hotspots()
 
     def _on_resize(self, event):
         self.redraw_full_canvas()
@@ -673,12 +674,12 @@ class MapApplication:
 
     def _world_to_canvas(self, world_x, world_y):
         canvas_x = (world_x * self.zoom) + self.offset_x
-        canvas_y = (world_y * self.zoom) + self.offset_y
+        canvas_y = (-world_y * self.zoom) + self.offset_y
         return canvas_x, canvas_y
 
     def _canvas_to_world(self, canvas_x, canvas_y):
         world_x = (canvas_x - self.offset_x) / self.zoom
-        world_y = (canvas_y - self.offset_y) / self.zoom
+        world_y = -(canvas_y - self.offset_y) / self.zoom
         return world_x, world_y
 
     def redraw_full_canvas(self):
@@ -698,6 +699,7 @@ class MapApplication:
         # Dinamic
         self._draw_requests()
         self._draw_vehicles()
+        self._draw_hotspots()
 
         # Debug
         self.canvas.create_text(
@@ -843,6 +845,52 @@ class MapApplication:
                 y,
                 image=sprite_to_use,
                 tags=("vehicle", f"vehicle_{v.id}"),
+            )
+
+    def _draw_hotspots(self):
+        if not self.simulator.hotspot_manager:
+            return
+
+        self.canvas.delete("hotspot")
+        hotspots = self.simulator.hotspot_manager.hotspots
+
+        c_width = self.canvas.winfo_width()
+        c_height = self.canvas.winfo_height()
+        margin = 100
+
+        for h in hotspots:
+            x, y = self._world_to_canvas(*h.coordinates)
+
+            # Raio em pixels: (Raio em KM / Constante de conversão) * Zoom
+            radius_pixels = (h.radius_km / 130) * self.zoom
+
+            if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                continue
+
+            color = "green" if h.is_active else "red"
+            stipple = "gray50" if not h.is_active else ""
+
+            # Draw circle
+            self.canvas.create_oval(
+                x - radius_pixels,
+                y - radius_pixels,
+                x + radius_pixels,
+                y + radius_pixels,
+                outline=color,
+                width=2,
+                fill=color if h.is_active else "",
+                stipple=stipple,
+                tags="hotspot",
+            )
+
+            # Draw label
+            self.canvas.create_text(
+                x,
+                y - radius_pixels - 10,
+                text=h.name,
+                fill="white",
+                font=("Arial", 10, "bold"),
+                tags="hotspot",
             )
 
 

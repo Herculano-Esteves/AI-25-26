@@ -1,5 +1,5 @@
 import random
-from typing import List
+from typing import List, Optional
 from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
@@ -234,8 +234,14 @@ def gas_ev_station_grant_existance(city_map: CityGraph):
         city_map.gas_stations.append(no_a_converter)
 
 
-def generate_random_request(map: CityGraph, nos: List[Node], creation_time: float) -> Request:
-    start_node = random.choice(nos)
+def generate_random_request(
+    map: CityGraph, nos: List[Node], creation_time: float, force_start_node: Optional[Node] = None
+) -> Request:
+    if force_start_node:
+        start_node = force_start_node
+    else:
+        start_node = random.choice(nos)
+
     end_node = random.choice(nos)
     while start_node == end_node:
         end_node = random.choice(nos)

@@ -14,6 +14,7 @@ from Simulation.request_simulation import (
     assign_pending_requests,
     generate_new_requests_if_needed,
 )
+from Simulation.hotspots import HotspotManager
 
 
 class Simulator:
@@ -49,11 +50,13 @@ class Simulator:
         print("A criar novo mapa...")
         self.map = generate_map()
 
+        self.hotspot_manager = HotspotManager(self.map)
+
         all_nodes = list(self.map.nos)
 
         self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
 
-        self.current_time = 0.0
+        self.current_time = 0.0  # 00:00
 
         self.requests = generate_requests(
             self.map, all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time
@@ -67,12 +70,17 @@ class Simulator:
     def simulation_step(self, time_multiplier: float = 1.0):
         """
         Executes one step of simulation.
-        param time_multiplier: Multiplier for the time passage (1.0 = normal, 2.0 = double speed)
+        :param time_multiplier: Multiplier for the time passage (1.0 = normal, 2.0 = double speed)
         """
+        # Apply the multiplier to the base tick time
         time_to_advance = self.SIM_TIME_PER_TICK * time_multiplier
 
         self.current_time += time_to_advance
         self.stats.reset_step_metrics()
+
+        # Update Hotspots based on the time
+        current_hour = self.get_current_hour()
+        self.hotspot_manager.update(current_hour)
 
         for v in self.vehicles:
             manage_vehicle(self, v, time_to_advance)
@@ -109,10 +117,8 @@ class Simulator:
 
     def _update_station_failures(self, time_to_advance: float):
         stations_to_check = []
-        if hasattr(self.map, "gas_stations"):
-            stations_to_check.extend(self.map.gas_stations)
-        if hasattr(self.map, "ev_stations"):
-            stations_to_check.extend(self.map.ev_stations)
+        stations_to_check.extend(self.map.gas_stations)
+        stations_to_check.extend(self.map.ev_stations)
 
         for node in stations_to_check:
             if node.is_available:

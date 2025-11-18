@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 class PlanningConfig:
     """
-    Centraliza todos os pesos e penalizações para facilitar o tuning.
+    All the weights
     """
 
     # Pesos Base
@@ -44,34 +44,21 @@ class PlanningConfig:
 
 
 class StrategyManager:
-    _hotspots: List[Node] = []
-
-    @classmethod
-    def identify_hotspots(cls, simulator: "Simulator"):
+    @staticmethod
+    def identify_hotspots(simulator: "Simulator") -> List[Node]:
         """
-        Identifica nós estratégicos (Centrais e de Interesse).
-        Usar depois localizações reais
+        Retorna a lista de nós associados aos hotspots reais mapeados pelo HotspotManager.
+        Esta lista é usada para calcular a penalidade de isolamento (WEIGHT_ISOLATION).
         """
-        if cls._hotspots:
-            return cls._hotspots
-
-        nodes = list(simulator.map.nos)
-        if not nodes:
+        if not simulator.hotspot_manager:
             return []
 
-        # Centro Geométrico
-        avg_x = sum(n.position[0] for n in nodes) / len(nodes)
-        avg_y = sum(n.position[1] for n in nodes) / len(nodes)
-        center_dummy = Node((avg_x, avg_y))
-        center_node = min(nodes, key=lambda n: _heuristic_distance(n, center_dummy))
+        all_hotspot_nodes = set()
+        for hotspot in simulator.hotspot_manager.hotspots:
+            all_hotspot_nodes.update(hotspot.node_cache)
 
-        cls._hotspots = [center_node]
-
-        # Adicionar pontos aleatórios fixos (ex: Estações, Aeroporto)
-        rng = random.Random(42)
-        cls._hotspots.extend(rng.sample(nodes, min(len(nodes), 4)))
-
-        return cls._hotspots
+        # Retorna uma lista de nós únicos que pertencem a qualquer hotspot real.
+        return list(all_hotspot_nodes)
 
     @staticmethod
     def get_dist_to_nearest_hotspot(node: Node, simulator: "Simulator") -> float:
@@ -453,6 +440,7 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
         v.current_segment_index = 0
         v.current_segment_progress_time = 0.0
     else:
+        print(f"[SA] Erro: Caminho real não encontrado para atribuição {v.id}->{request.id}")
         v.request = None
         v.condition = VehicleCondition.AVAILABLE
         if request in simulator.requests_to_pickup:
@@ -473,8 +461,15 @@ def generate_new_requests_if_needed(simulator: "Simulator"):
     if total < simulator.NUM_INITIAL_REQUESTS or len(simulator.requests) < target:
         num = simulator.NUM_REQUESTS_TO_GENERATE
         for _ in range(num):
+            hotspot_node = None
+            if simulator.hotspot_manager and random.random() < 0.7:  # 70% chance
+                hotspot_node = simulator.hotspot_manager.get_random_node_from_active_hotspots()
+
             simulator.requests.append(
                 generate_random_request(
-                    simulator.map, list(simulator.map.nos), simulator.current_time
+                    simulator.map,
+                    list(simulator.map.nos),
+                    simulator.current_time,
+                    force_start_node=hotspot_node,
                 )
             )

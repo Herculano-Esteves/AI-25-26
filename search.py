@@ -17,7 +17,7 @@ def calculate_time_minutes(distance_km: float, speed_kmh: float) -> float:
     return (distance_km / speed_kmh) * 60.0
 
 
-def _haversine_km(lon_a, lat_a, lon_b, lat_b):
+def haversine_km(lon_a, lat_a, lon_b, lat_b):
     R = 6371.0  # Earth radius
     phi1 = math.radians(lat_a)
     phi2 = math.radians(lat_b)
@@ -32,7 +32,7 @@ def _heuristic_distance(a: Node, b: Node) -> float:
     (lon1, lat1) = a.position
     (lon2, lat2) = b.position
 
-    distance_km = _haversine_km(lon1, lat1, lon2, lat2)
+    distance_km = haversine_km(lon1, lat1, lon2, lat2)
 
     # Heuristic Admissibility
     max_possible_speed_kmh = 120.0
