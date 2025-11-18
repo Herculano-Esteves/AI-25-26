@@ -2,6 +2,16 @@ from typing import Tuple
 
 
 class Node:
+    # Tiny optimization
+    __slots__ = (
+        "position",
+        "gas_pumps",
+        "energy_chargers",
+        "energy_recharge_rate_kw",
+        "is_available",
+        "time_down",
+    )
+
     def __init__(
         self,
         position: Tuple[float, float],

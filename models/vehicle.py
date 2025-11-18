@@ -21,6 +21,26 @@ class VehicleCondition(Enum):
 
 
 class Vehicle:
+
+    # Tiny optimization
+    __slots__ = (
+        "id",
+        "motor",
+        "position_node",
+        "passenger_capacity",
+        "price_per_km",
+        "max_km",
+        "remaining_km",
+        "condition",
+        "times_borken",
+        "request",
+        "current_route",
+        "current_segment_index",
+        "current_segment_progress_time",
+        "time_stopped",
+        "map_coordinates",
+    )
+
     def __init__(
         self,
         id: str,

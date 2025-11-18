@@ -1,6 +1,7 @@
 import heapq
 import math
 from typing import List, Optional, Dict, Set, Tuple
+from collections import defaultdict
 
 from models.node import Node
 from graph import CityGraph
@@ -9,25 +10,22 @@ from graph import CityGraph
 # A* Helper Functions
 
 
+def _haversine_km(lon_a, lat_a, lon_b, lat_b):
+    R = 6371.0  # Earth radius
+    phi1 = math.radians(lat_a)
+    phi2 = math.radians(lat_b)
+    dphi = math.radians(lat_b - lat_a)
+    dlambda = math.radians(lon_b - lon_a)
+    sa = math.sin(dphi / 2.0) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
+    c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
+    return R * c
+
+
 def _heuristic_distance(a: Node, b: Node) -> float:
     (lon1, lat1) = a.position
     (lon2, lat2) = b.position
 
-    # haversine formula
-    def haversine_km(lon_a, lat_a, lon_b, lat_b):
-        R = 6371.0  # Earth radius
-        phi1 = math.radians(lat_a)
-        phi2 = math.radians(lat_b)
-        dphi = math.radians(lat_b - lat_a)
-        dlambda = math.radians(lon_b - lon_a)
-        sa = (
-            math.sin(dphi / 2.0) ** 2
-            + math.cos(phi1) * math.cos(phi2) * math.sin(dlambda / 2.0) ** 2
-        )
-        c = 2 * math.atan2(math.sqrt(sa), math.sqrt(1 - sa))
-        return R * c
-
-    distance_km = haversine_km(lon1, lat1, lon2, lat2)
+    distance_km = _haversine_km(lon1, lat1, lon2, lat2)
     # heuristic in minutes: average speed 30 km/h
     # minutes = km / (km/h) * 60
     avg_speed_kmh = 30.0
@@ -51,29 +49,30 @@ def find_a_star_route(
     # returns (path, total_time, total_distance)
     closed_set: Set[Node] = set()
     open_set = []
+    # Heap stores: (f_score, hash(node), node)
     heapq.heappush(open_set, (0, hash(start_node), start_node))
     open_set_map = {start_node}
 
     # came_from: Dictionary to reconstruct the path.
     came_from: Dict[Node, Node] = {}
 
-    # g_score: Cost (time) from start to 'n'
-    g_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
+    # Default lazy initialization.
+    g_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     g_score[start_node] = 0.0
 
-    # d_score: Distance (km) from start to 'n' (following the fastest path)
-    d_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
+    d_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     d_score[start_node] = 0.0
 
-    # f_score: Estimated total cost (g + h) from start to end, passing through 'n'.
-    f_score: Dict[Node, float] = {no: float("inf") for no in map.nos}
+    f_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     f_score[start_node] = _heuristic_distance(start_node, end_node)
 
     while open_set:
 
         # Get the node from the priority queue with the lowest f_score
         current_f, _, current = heapq.heappop(open_set)
-        open_set_map.remove(current)
+
+        if current in open_set_map:
+            open_set_map.remove(current)
 
         # End
         if current == end_node:

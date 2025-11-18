@@ -5,6 +5,25 @@ from typing import Optional, List
 class Request:
     id_counter = 1
 
+    # Tiny optimization
+    __slots__ = (
+        "id",
+        "start_node",
+        "end_node",
+        "passenger_capacity",
+        "creation_time",
+        "price",
+        "priority",
+        "environmental_preference",
+        "path",
+        "path_distance",
+        "path_time",
+        "nearest_ev_station_path",
+        "nearest_ev_station_distance",
+        "nearest_gas_station_path",
+        "nearest_gas_station_distance",
+    )
+
     def __init__(
         self,
         start_node: Node,

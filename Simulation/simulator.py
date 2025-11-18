@@ -104,19 +104,24 @@ class Simulator:
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
 
     def _update_station_failures(self, time_to_advance: float):
-        for node in self.map.nos:
-            if node.gas_pumps > 0 or node.energy_chargers > 0:
-                if node.is_available:
-                    if random.random() < self.STATION_FAILURE_PROB_PER_TICK:
-                        node.is_available = False
-                        node.time_down = 0.0
-                        print(f"[Station Failure] Estação em {node.position} falhou!")
-                else:
-                    node.time_down += time_to_advance
-                    if node.time_down >= self.STATION_DOWNTIME_MINUTES:
-                        node.is_available = True
-                        node.time_down = 0.0
-                        print(f"[Station Repair] Estação em {node.position} está operacional.")
+        stations_to_check = []
+        if hasattr(self.map, "gas_stations"):
+            stations_to_check.extend(self.map.gas_stations)
+        if hasattr(self.map, "ev_stations"):
+            stations_to_check.extend(self.map.ev_stations)
+
+        for node in stations_to_check:
+            if node.is_available:
+                if random.random() < self.STATION_FAILURE_PROB_PER_TICK:
+                    node.is_available = False
+                    node.time_down = 0.0
+                    print(f"[Station Failure] Estação em {node.position} falhou!")
+            else:
+                node.time_down += time_to_advance
+                if node.time_down >= self.STATION_DOWNTIME_MINUTES:
+                    node.is_available = True
+                    node.time_down = 0.0
+                    print(f"[Station Repair] Estação em {node.position} está operacional.")
 
     def get_current_time_of_day(self) -> tuple[int, int, int, int]:
         # return day, hour, minute, year
