@@ -4,7 +4,7 @@ from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
 from models.request import Request
-from search import find_a_star_route
+from search import find_a_star_route, _heuristic_distance
 
 import osmnx as ox
 import math
@@ -16,6 +16,7 @@ BASE_FARE = 2.50
 PRICE_PER_KM = 0.60
 CACHE_FILE = "braga_map_cache.pkl"
 
+
 def generate_map() -> CityGraph:
     place = "Braga, Portugal"
 
@@ -24,8 +25,8 @@ def generate_map() -> CityGraph:
         try:
             with open(CACHE_FILE, "rb") as f:
                 city_map = pickle.load(f)
-            
-            gas_ev_station_grant_existance(list(city_map.nos))
+
+            gas_ev_station_grant_existance(city_map)
             print(f"Mapa carregado: {len(city_map.nos)} nós.")
             return city_map
         except Exception as e:
@@ -33,7 +34,7 @@ def generate_map() -> CityGraph:
 
     print(f"A descarregar grafo OSM para: {place}...")
     G = ox.graph_from_place(place, network_type="drive", simplify=True)
-    
+
     city_map = CityGraph()
     osmn_to_node = {}
 
@@ -43,7 +44,7 @@ def generate_map() -> CityGraph:
         lat = data.get("y")
         if lon is None or lat is None:
             continue
-        no = Node((lon, lat), 0, 0, 0) 
+        no = Node((lon, lat), 0, 0, 0)
         osmn_to_node[node_id] = no
         city_map.add_node(no)
 
@@ -59,18 +60,21 @@ def generate_map() -> CityGraph:
         # Parse maxspeed if available
         maxspeed = data.get("maxspeed")
         speed_kmh = _parse_maxspeed(maxspeed)
-        
+
         # No max speed defined
         if speed_kmh is None:
             highway = data.get("highway")
-            if highway in ["motorway", "trunk"]: speed_kmh = 90.0
-            elif highway == "primary": speed_kmh = 50.0
-            else: speed_kmh = 30.0
+            if highway in ["motorway", "trunk"]:
+                speed_kmh = 90.0
+            elif highway == "primary":
+                speed_kmh = 50.0
+            else:
+                speed_kmh = 30.0
 
         if length_km == 0:
-             time_minutes = 0
+            time_minutes = 0
         else:
-             time_minutes = (length_km / speed_kmh) * 60.0
+            time_minutes = (length_km / speed_kmh) * 60.0
 
         # Speed_kmh to graph
         city_map.add_connection(no_u, no_v, length_km, time_minutes, speed_kmh, True)
@@ -78,8 +82,16 @@ def generate_map() -> CityGraph:
     # Get real stations
     _enrich_nodes_with_stations(G, city_map, place)
 
+    # Safety
     all_nodes = list(city_map.nos)
-    gas_ev_station_grant_existance(all_nodes)
+    gas_ev_station_grant_existance(city_map)
+
+    city_map.gas_stations = [n for n in city_map.nos if n.gas_pumps > 0]
+    city_map.ev_stations = [n for n in city_map.nos if n.energy_chargers > 0]
+
+    print(
+        f"Mapa gerado: {len(all_nodes)} nós (Gas: {len(city_map.gas_stations)}, EV: {len(city_map.ev_stations)})."
+    )
 
     print(f"Mapa gerado com sucesso.")
     try:
@@ -90,26 +102,27 @@ def generate_map() -> CityGraph:
 
     return city_map
 
+
 def _enrich_nodes_with_stations(G, city_map: CityGraph, place: str):
     """
     Tries to find real gas/ev stations
     """
     print("A procurar estações reais (Combustível e EV)...")
     try:
-        tags = {'amenity': ['fuel', 'charging_station']}
-        gdf = ox.features_from_place(place, tags) # type: ignore
-        
+        tags = {"amenity": ["fuel", "charging_station"]}
+        gdf = ox.features_from_place(place, tags)  # type: ignore
+
         if gdf.empty:
             print("Nenhuma estação encontrada no OSM data.")
             return
 
         count_gas = 0
         count_ev = 0
-        
+
         for _, row in gdf.iterrows():
-            amenity = row.get('amenity')
-            
-            if hasattr(row.geometry, 'centroid'):
+            amenity = row.get("amenity")
+
+            if hasattr(row.geometry, "centroid"):
                 lon = row.geometry.centroid.x
                 lat = row.geometry.centroid.y
             else:
@@ -118,34 +131,42 @@ def _enrich_nodes_with_stations(G, city_map: CityGraph, place: str):
 
             # Finds nearest node
             nearest_osmn_id = ox.distance.nearest_nodes(G, lon, lat)
-            
+
             nearest_node_data = G.nodes[nearest_osmn_id]
-            n_lon = nearest_node_data['x']
-            n_lat = nearest_node_data['y']
-            
+            n_lon = nearest_node_data["x"]
+            n_lat = nearest_node_data["y"]
+
             target_node = city_map.get_node_by_position((n_lon, n_lat))
 
             if target_node:
-                if amenity == 'fuel':
+                if amenity == "fuel":
                     target_node.gas_pumps = random.randint(4, 8)
                     count_gas += 1
-                elif amenity == 'charging_station':
+                elif amenity == "charging_station":
                     target_node.energy_chargers = random.randint(2, 6)
-                    target_node.energy_recharge_rate_kw = random.choice([50, 150, 250]) # Fast charging
+                    target_node.energy_recharge_rate_kw = random.choice(
+                        [50, 150, 250]
+                    )  # Fast charging
                     count_ev += 1
 
-        print(f"Integração Real: {count_gas} Postos Gasolina, {count_ev} Carregadores EV encontrados.")
+        print(
+            f"Integração Real: {count_gas} Postos Gasolina, {count_ev} Carregadores EV encontrados."
+        )
 
     except Exception as e:
         print(f"Aviso: Não foi possível extrair estações reais ({e}). Usando aleatórias.")
 
+
 def _parse_maxspeed(ms):
-    if ms is None: return None
+    if ms is None:
+        return None
     try:
-        if isinstance(ms, list): ms = ms[0]
-        if isinstance(ms, (int, float)): return float(ms)
+        if isinstance(ms, list):
+            ms = ms[0]
+        if isinstance(ms, (int, float)):
+            return float(ms)
         if isinstance(ms, str):
-            clean = ms.replace(' mph', '').replace(' km/h', '').split(';')[0].strip()
+            clean = ms.replace(" mph", "").replace(" km/h", "").split(";")[0].strip()
             return float(clean)
     except:
         return None
@@ -199,14 +220,18 @@ def generate_requests(
     return requests
 
 
-def gas_ev_station_grant_existance(all_nodes):
+def gas_ev_station_grant_existance(city_map: CityGraph):
+    all_nodes = list(city_map.nos)
     if not any(n.energy_chargers > 0 for n in all_nodes):
         no_a_converter = random.choice(all_nodes)
         no_a_converter.energy_chargers = random.randint(2, 4)
+        no_a_converter.energy_recharge_rate_kw = 50
+        city_map.ev_stations.append(no_a_converter)
 
     if not any(n.gas_pumps > 0 for n in all_nodes):
         no_a_converter = random.choice(all_nodes)
         no_a_converter.gas_pumps = random.randint(2, 4)
+        city_map.gas_stations.append(no_a_converter)
 
 
 def generate_random_request(map: CityGraph, nos: List[Node], creation_time: float) -> Request:
@@ -225,29 +250,32 @@ def generate_random_request(map: CityGraph, nos: List[Node], creation_time: floa
 
     req_priority = random.randint(1, 5)
 
-    # Nearest stations from the end_node
-    ev_stations = [n for n in nos if n.energy_chargers > 0]
-    gas_stations = [n for n in nos if n.gas_pumps > 0]
-
+    # Nearest stations from the end_node using heurística for efficiency
     nearest_ev_path = None
     nearest_ev_dist = float("inf")
-    for station in ev_stations:
-        path_info = find_a_star_route(map, end_node, station)
+
+    if map.ev_stations:
+        closest_ev_node = min(map.ev_stations, key=lambda s: _heuristic_distance(end_node, s))
+
+        # Calculate only A* for the closest station
+        path_info = find_a_star_route(map, end_node, closest_ev_node)
         if path_info:
-            p, t, d = path_info
-            if d < nearest_ev_dist:
-                nearest_ev_dist = d
-                nearest_ev_path = p
+            nearest_ev_path, _, nearest_ev_dist = path_info
+        else:
+            nearest_ev_dist = _heuristic_distance(end_node, closest_ev_node)
 
     nearest_gas_path = None
     nearest_gas_dist = float("inf")
-    for station in gas_stations:
-        path_info = find_a_star_route(map, end_node, station)
+
+    if map.gas_stations:
+        closest_gas_node = min(map.gas_stations, key=lambda s: _heuristic_distance(end_node, s))
+
+        # Calculate only A* for the closest station
+        path_info = find_a_star_route(map, end_node, closest_gas_node)
         if path_info:
-            p, t, d = path_info
-            if d < nearest_gas_dist:
-                nearest_gas_dist = d
-                nearest_gas_path = p
+            nearest_gas_path, _, nearest_gas_dist = path_info
+        else:
+            nearest_gas_dist = _heuristic_distance(end_node, closest_gas_node)
 
     return Request(
         start_node=start_node,

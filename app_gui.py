@@ -747,17 +747,23 @@ class MapApplication:
     def _draw_nodes(self, c_width, c_height, margin):
         sprite_gas = self.sprite_cache["gas"]
         sprite_ev = self.sprite_cache["ev"]
+        if hasattr(self.simulator.map, "gas_stations"):
+            for node in self.simulator.map.gas_stations:
+                x, y = self._world_to_canvas(*node.position)
 
-        for node in self.simulator.map.nos:
-            x, y = self._world_to_canvas(*node.position)
-            if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
-                continue
+                # Culling
+                if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                    continue
 
-            # Draw station
-            if node.gas_pumps > 0:
                 self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
 
-            elif node.energy_chargers > 0:
+        if hasattr(self.simulator.map, "ev_stations"):
+            for node in self.simulator.map.ev_stations:
+                x, y = self._world_to_canvas(*node.position)
+
+                if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                    continue
+
                 self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
 
     def _draw_station_overlays(self):
@@ -770,33 +776,38 @@ class MapApplication:
         c_height = self.canvas.winfo_height()
         margin = 100
 
-        for node in self.simulator.map.nos:
+        stations_to_check = []
+        if hasattr(self.simulator.map, "gas_stations"):
+            stations_to_check.extend(self.simulator.map.gas_stations)
+        if hasattr(self.simulator.map, "ev_stations"):
+            stations_to_check.extend(self.simulator.map.ev_stations)
+
+        for node in stations_to_check:
             if not node.is_available:
-                if node.gas_pumps > 0 or node.energy_chargers > 0:
-                    x, y = self._world_to_canvas(*node.position)
+                x, y = self._world_to_canvas(*node.position)
 
-                    if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
-                        continue
+                if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                    continue
 
-                    # Draw the cross
-                    self.canvas.create_line(
-                        x - overlay_radius,
-                        y - overlay_radius,
-                        x + overlay_radius,
-                        y + overlay_radius,
-                        fill="red",
-                        width=4,
-                        tags=("no", "falha_overlay"),
-                    )
-                    self.canvas.create_line(
-                        x - overlay_radius,
-                        y + overlay_radius,
-                        x + overlay_radius,
-                        y - overlay_radius,
-                        fill="red",
-                        width=4,
-                        tags=("no", "falha_overlay"),
-                    )
+                # Draw the cross
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y - overlay_radius,
+                    x + overlay_radius,
+                    y + overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y + overlay_radius,
+                    x + overlay_radius,
+                    y - overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
 
     def _draw_requests(self):
         self.canvas.delete("request")

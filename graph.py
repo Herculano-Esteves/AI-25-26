@@ -4,6 +4,7 @@ from models.node import Node
 # (Distance Km, Time minutes, Max Speed km/h)
 TipoAresta = Tuple[float, float, float]
 
+
 class CityGraph:
 
     def __init__(self):
@@ -11,11 +12,21 @@ class CityGraph:
         self.adj: Dict[Node, Dict[Node, TipoAresta]] = {}
         self.position_to_node: Dict[Tuple[float, float], Node] = {}
 
+        self.gas_stations: List[Node] = []
+        self.ev_stations: List[Node] = []
+
     def add_node(self, no: Node):
+        # If it already exists it will replace
         if no not in self.nos:
             self.nos.add(no)
             self.adj[no] = {}
             self.position_to_node[no.position] = no
+
+            # Add to station list
+            if no.gas_pumps > 0:
+                self.gas_stations.append(no)
+            if no.energy_chargers > 0:
+                self.ev_stations.append(no)
 
     def node_exists(self, no: Node) -> bool:
         return no in self.nos

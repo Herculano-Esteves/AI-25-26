@@ -1,4 +1,4 @@
-from search import find_a_star_route
+from search import find_a_star_route, _heuristic_distance
 from models.vehicle import Vehicle, VehicleCondition, Motor
 from models.node import Node
 from typing import TYPE_CHECKING
@@ -234,19 +234,23 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
 
     target_nodes = []
     if v.motor == Motor.ELECTRIC:
-        target_nodes = [n for n in simulator.map.nos if n.energy_chargers > 0 and n.is_available]
+        target_nodes = [n for n in simulator.map.ev_stations if n.is_available]
     else:
-        target_nodes = [n for n in simulator.map.nos if n.gas_pumps > 0 and n.is_available]
+        target_nodes = [n for n in simulator.map.gas_stations if n.is_available]
 
     if not target_nodes:
         print(f"[Vehicle] AVISO: {v.id} não encontrou estações de {v.motor.name}!")
         return
 
+    closest_candidates = sorted(
+        target_nodes, key=lambda n: _heuristic_distance(v.position_node, n)
+    )[:3]
+
     best_station = None
     best_path_info = None
     min_time = float("inf")
 
-    for station in target_nodes:
+    for station in closest_candidates:
         path_info = find_a_star_route(simulator.map, v.position_node, station)
 
         if path_info:

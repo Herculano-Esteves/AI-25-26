@@ -84,9 +84,9 @@ class StrategyManager:
     def get_dist_to_nearest_station(node: Node, motor: Motor, simulator: "Simulator") -> float:
         stations = []
         if motor == Motor.ELECTRIC:
-            stations = [n for n in simulator.map.nos if n.energy_chargers > 0]
+            stations = simulator.map.ev_stations
         else:
-            stations = [n for n in simulator.map.nos if n.gas_pumps > 0]
+            stations = simulator.map.gas_stations
 
         if not stations:
             return float("inf")

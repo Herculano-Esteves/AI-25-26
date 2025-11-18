@@ -31,7 +31,7 @@ class Simulator:
     NUM_GAS_VEHICLES = 3
     NUM_INITIAL_REQUESTS = 10
     NUM_REQUESTS_TO_GENERATE = 4
-    STATION_FAILURE_PROB_PER_TICK = 0.0005  # Prob of a station to fail per tick
+    STATION_FAILURE_PROB_PER_TICK = 0.0001  # Prob of a station to fail per tick
     STATION_DOWNTIME_MINUTES = 120.0
 
     def __init__(self):
