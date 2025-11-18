@@ -49,7 +49,7 @@ class HotspotManager:
 
         hotspots_list = [
             Hotspot(
-                "Univ. Minho - Gualtar",
+                "Universidade do Minho",
                 (-8.398417, 41.559389),
                 [(7, 10), (12, 14), (16, 19)],
                 weight=2.0,
@@ -84,14 +84,14 @@ class HotspotManager:
                 radius_km=0.5,
             ),
             Hotspot(
-                "Centro Histórico (Arcada)",
+                "Centro Histórico",
                 (-8.423580, 41.551470),
                 [(11, 15), (18, 2)],
                 weight=2.0,
                 radius_km=0.6,
             ),
             Hotspot(
-                "Zona de Bares (Sé/Souto)",
+                "Bares da Sé",
                 (-8.425326, 41.550683),
                 [(20, 4)],
                 weight=2.3,
@@ -105,7 +105,7 @@ class HotspotManager:
                 radius_km=0.4,
             ),
             Hotspot(
-                "Nova Arcada / IKEA",
+                "Nova Arcada",
                 (-8.502800, 41.569800),
                 [(11, 15), (17, 21)],
                 weight=1.8,
@@ -119,21 +119,21 @@ class HotspotManager:
                 radius_km=0.4,
             ),
             Hotspot(
-                "Parque Industrial de Celeirós",
+                "Parque Industrial",
                 (-8.450500, 41.521000),
                 [(6, 9), (16, 19)],
                 weight=1.6,
                 radius_km=0.8,
             ),
             Hotspot(
-                "Estádio Municipal de Braga",
+                "Estádio Municipal",
                 (-8.433000, 41.566200),
                 [(18, 23)],
                 weight=3.5,
                 radius_km=0.7,
             ),
             Hotspot(
-                "Rodovia / Avenida Liberdade",
+                "Avenida da Liberdade",
                 (-8.413000, 41.553500),
                 [(8, 20)],
                 weight=1.2,
@@ -189,9 +189,8 @@ class HotspotManager:
         for hotspot in self.hotspots:
             nearby_nodes = []
 
-            # [CHANGE] Use real physical distance calculation
             for node in all_nodes:
-                # haversine_km expects (lon1, lat1, lon2, lat2)
+                # haversine_km expects
                 dist_km = haversine_km(
                     node.position[0],
                     node.position[1],

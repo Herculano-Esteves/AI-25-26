@@ -30,6 +30,8 @@ class MapApplication:
     SPRITE_SIZE_PX = 24
     REQUEST_FONT = ("Arial", 20)
 
+    KM_PER_DEGREE_LAT = 130
+
     def __init__(self, root):
         self.root = root
         self.root.title("Simulador de Frota - Painel de Controlo")
@@ -620,8 +622,9 @@ class MapApplication:
             new_x, new_y = self._world_to_canvas(*v.map_coordinates)
             self.canvas.coords(vehicle_tag, new_x, new_y)
         self._draw_requests()
-        self._draw_station_overlays()
+        self._draw_vehicles()
         self._draw_hotspots()
+        self._draw_station_overlays()
 
     def _on_resize(self, event):
         self.redraw_full_canvas()
@@ -692,14 +695,17 @@ class MapApplication:
         c_height = self.canvas.winfo_height()
         margin = 100
 
-        # Static
+        # Static / Background
         self._draw_edges(c_width, c_height, margin)
         self._draw_nodes(c_width, c_height, margin)
 
-        # Dinamic
+        # Static / Foreground
+        self._draw_hotspots()
+        self._draw_station_overlays()
+
+        # Dinamic / Foreground
         self._draw_requests()
         self._draw_vehicles()
-        self._draw_hotspots()
 
         # Debug
         self.canvas.create_text(
@@ -858,40 +864,47 @@ class MapApplication:
         c_height = self.canvas.winfo_height()
         margin = 100
 
+        KM_PER_DEGREE = self.KM_PER_DEGREE_LAT
+
         for h in hotspots:
             x, y = self._world_to_canvas(*h.coordinates)
 
-            # Raio em pixels: (Raio em KM / Constante de conversão) * Zoom
-            radius_pixels = (h.radius_km / 130) * self.zoom
+            # Radius in pixels
+            # (Raio em KM / Constante de conversão) * Zoom
+            radius_pixels = (h.radius_km / KM_PER_DEGREE) * self.zoom
 
+            # Culling
             if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
                 continue
 
-            color = "green" if h.is_active else "red"
-            stipple = "gray50" if not h.is_active else ""
+            if h.is_active:
+                outline_color = "green"
+            else:
+                outline_color = "red"
 
-            # Draw circle
             self.canvas.create_oval(
                 x - radius_pixels,
                 y - radius_pixels,
                 x + radius_pixels,
                 y + radius_pixels,
-                outline=color,
+                outline=outline_color,
                 width=2,
-                fill=color if h.is_active else "",
-                stipple=stipple,
                 tags="hotspot",
             )
 
-            # Draw label
-            self.canvas.create_text(
-                x,
-                y - radius_pixels - 10,
-                text=h.name,
-                fill="white",
-                font=("Arial", 10, "bold"),
-                tags="hotspot",
-            )
+            # Draw text
+            if self.zoom > 10000:
+                font_size = min(int(self.zoom / 10000 * 5), 15)
+
+                if font_size > 0:
+                    self.canvas.create_text(
+                        x,
+                        y,
+                        text=h.name,
+                        fill="white",
+                        font=("Arial", font_size, "bold"),
+                        tags="hotspot",
+                    )
 
 
 if __name__ == "__main__":
