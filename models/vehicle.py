@@ -39,6 +39,7 @@ class Vehicle:
         "current_segment_progress_time",
         "time_stopped",
         "map_coordinates",
+        "co2_emitted",
     )
 
     def __init__(
@@ -63,6 +64,7 @@ class Vehicle:
         self.remaining_km = remaining_km
         self.condition = condition
         self.times_borken = 0
+        self.co2_emitted: float = 0.0
 
         if self.remaining_km > self.max_km:
             self.remaining_km = self.max_km

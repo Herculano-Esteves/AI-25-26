@@ -19,7 +19,7 @@ class TrafficManager:
     def get_traffic_factor(self, position: Tuple[float, float], time_minutes: float) -> float:
         # Traffic clock
         current_time_block = time_minutes - (time_minutes % 15)
-        
+
         if current_time_block != self._last_time_block:
             self._cache.clear()
             self._last_time_block = current_time_block
@@ -36,12 +36,12 @@ class TrafficManager:
         # Miss
         grid_lon = lon_idx * self.grid_precision
         grid_lat = lat_idx * self.grid_precision
-        
+
         factor = self._calculate_heavy_math(grid_lon, grid_lat, current_time_block)
-        
+
         # Cache save
         self._cache[cache_key] = factor
-        
+
         return factor
 
     def _calculate_heavy_math(self, lon: float, lat: float, time_minutes: float) -> float:
@@ -66,7 +66,7 @@ class TrafficManager:
         raw_congestion = noise_val + (center_influence * 0.45)
 
         # Will remove traffic the furthest it is from the center
-        traffic_threshold = 0.55 
+        traffic_threshold = 0.55
 
         if raw_congestion < traffic_threshold:
             return 1.0
@@ -74,9 +74,9 @@ class TrafficManager:
         excess_traffic = raw_congestion - traffic_threshold
 
         gain = rush_intensity * 5.0
-        
+
         penalty = excess_traffic * gain
-        
+
         return 1.0 + penalty
 
     def _get_rush_intensity(self, hour: float) -> float:
@@ -85,23 +85,23 @@ class TrafficManager:
         """
         # Manhã (07h30 - 09h30)
         if 7.5 <= hour < 9.5:
-            return 0.7 
-        
+            return 0.7
+
         # Almoço (12h - 14h)
         elif 12 <= hour < 14:
             return 0.3
-            
+
         # Tarde (17h - 19h30) - Pico Máximo
         elif 17 <= hour < 19.5:
             return 0.9
-            
+
         # Pré-noite (19h30 - 21h)
         elif 19.5 <= hour < 21:
             return 0.2
-            
+
         # Madrugada / Noite
         elif hour < 6.5 or hour > 22:
             return 0.1
-            
+
         # Base do dia
         return 0.1

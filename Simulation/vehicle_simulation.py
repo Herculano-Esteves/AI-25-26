@@ -9,6 +9,9 @@ if TYPE_CHECKING:
 
 PENALTY_TIME = 30.0
 GAS_REFUEL_TIME_MINUTES = 5.0
+# https://www.acp.pt/o-clube/revista-acp/atualidade/detalhe/nivel-das-emissoes-poluentes-de-carros-novos-cresceu-em-2024
+# Portugal regista emissões médias de CO2 de 86,8 g/km.
+CO2_GRAMS_PER_KM_COMBUSTION = 87
 
 
 def manage_vehicle(simulator: "Simulator", v: Vehicle, time_to_advance: float):
@@ -315,6 +318,13 @@ def _record_vehicle_movement_stats(simulator: "Simulator", v: Vehicle, distance_
 
     # Total km
     stats.step_kms_driven += distance_this_tick
+
+    # CO2
+    if v.motor == Motor.COMBUSTION:
+        emitted_kg = (distance_this_tick * CO2_GRAMS_PER_KM_COMBUSTION) / 1000.0
+
+        v.co2_emitted += emitted_kg
+        stats.step_co2_emitted += emitted_kg
 
     if v.condition == VehicleCondition.ON_TRIP_WITH_CLIENT:
         stats.step_kms_driven_with_passenger += distance_this_tick

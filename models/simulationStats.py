@@ -10,6 +10,8 @@ class SimulationStats:
         self.total_requests_completed: int = 0
         self.total_requests_failed: int = 0
 
+        self.total_co2_emitted: float = 0.0
+
         # Criação -> Entrega
         self.total_time_for_completed_requests: float = 0.0
         self.min_total_trip_time: float = float("inf")
@@ -35,6 +37,8 @@ class SimulationStats:
         self.step_vehicles_charging: int = 0
         self.step_vehicles_unavailable: int = 0
 
+        self.step_co2_emitted: float = 0.0
+
     def reset_step_metrics(self):
         # Clear old frame values
         self.step_assignment_cost = 0.0
@@ -49,3 +53,5 @@ class SimulationStats:
         self.step_vehicles_on_trip = 0
         self.step_vehicles_charging = 0
         self.step_vehicles_unavailable = 0
+
+        self.step_co2_emitted = 0.0
