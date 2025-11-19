@@ -29,7 +29,7 @@ class MapApplication:
     DEBUG_TEXT_COLOR = "yellow"
 
     # Drawing constants
-    SPRITE_SIZE_PX = 24
+    SPRITE_SIZE_PX = 18
     REQUEST_FONT = ("Arial", 20)
 
     KM_PER_DEGREE_LAT = 130
@@ -162,7 +162,7 @@ class MapApplication:
         headers = {
             "id": ("ID", 40),
             "status": ("Estado", 100),
-            "autonomy": ("Bat.", 70),
+            "autonomy": ("Km", 70),
             "request": ("Req.", 40),
             "motor": ("Tipo", 60),
             "capacidade": ("Cap.", 40),

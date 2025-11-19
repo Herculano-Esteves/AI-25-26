@@ -1,81 +1,107 @@
 from noise import pnoise3
-from typing import Tuple
+from typing import Tuple, Dict
 import math
 
 
 class TrafficManager:
     def __init__(self, seed: int = 42):
         self.seed = seed
-        # Ajuste para 'zoom' do ruído no mapa.
-        # 0.15 cria zonas de trânsito médias (bairros inteiros).
-        self.noise_scale = 0.15
-
-        # Ajuste para a velocidade da mudança no tempo.
-        # 0.05 significa que o padrão muda lentamente minuto a minuto.
+        self.noise_scale = 3.5
         self.time_scale = 0.05
-
-        # Coordenadas aproximadas do centro de Braga (para penalizar o centro)
         self.center_coords = (-8.42, 41.55)
 
+        # Cache: {(lat_idx, lon_idx): traffic_factor}
+        self._cache: Dict[Tuple[int, int], float] = {}
+        self._last_time_block: float = -1.0
+        # Noise precision
+        self.grid_precision = 0.002
+
     def get_traffic_factor(self, position: Tuple[float, float], time_minutes: float) -> float:
-        """
-        Retorna um multiplicador de tempo (>= 1.0).
-        Ex: 1.0 = Sem trânsito. 2.0 = Tempo de viagem duplicado.
-        """
+        # Traffic clock
+        current_time_block = time_minutes - (time_minutes % 15)
+        
+        if current_time_block != self._last_time_block:
+            self._cache.clear()
+            self._last_time_block = current_time_block
+
         lon, lat = position
+        lon_idx = int(lon / self.grid_precision)
+        lat_idx = int(lat / self.grid_precision)
+        cache_key = (lon_idx, lat_idx)
 
-        # 1. Fator Hora de Ponta (Determinístico - "A onda diária")
-        hour_of_day = (time_minutes / 60.0) % 24
-        rush_factor = self._get_rush_hour_multiplier(hour_of_day)
+        # Get from cache
+        if cache_key in self._cache:
+            return self._cache[cache_key]
 
-        # Se for de madrugada (fator < 1.1), ignoramos o ruído espacial para poupar recursos
-        if rush_factor <= 1.05:
-            return 1.0
+        # Miss
+        grid_lon = lon_idx * self.grid_precision
+        grid_lat = lat_idx * self.grid_precision
+        
+        factor = self._calculate_heavy_math(grid_lon, grid_lat, current_time_block)
+        
+        # Cache save
+        self._cache[cache_key] = factor
+        
+        return factor
 
-        # 2. Fator Ruído Perlin (Variação Local e Temporal)
-        # pnoise3(x, y, z) -> Gera um valor suave entre -1 e 1
-        # Usamos o 'time_minutes' no eixo Z para evoluir o padrão no tempo.
-        noise_val = pnoise3(
-            (lon * 100) * self.noise_scale,
-            (lat * 100) * self.noise_scale,
-            time_minutes * self.time_scale,
-            octaves=2,
-            persistence=0.5,
-        )
+    def _calculate_heavy_math(self, lon: float, lat: float, time_minutes: float) -> float:
+        """
+        Contém a tua lógica original de noise, distâncias e threshold.
+        Só é chamada se o valor não existir na cache.
+        """
 
-        # Normalizar de [-1, 1] para [0, 1]
+        rush_intensity = self._get_rush_intensity((time_minutes / 60.0) % 24)
+
+        # Noise
+        x_noise = (lon - self.center_coords[0]) * 100 * self.noise_scale
+        y_noise = (lat - self.center_coords[1]) * 100 * self.noise_scale
+        z_time = time_minutes * self.time_scale
+
+        noise_val = pnoise3(x_noise, y_noise, z_time, octaves=2, persistence=0.5)
         noise_val = (noise_val + 1) / 2.0
 
-        # 3. Penalização do Centro Urbano
+        # Center of city filter to make the trafic be on the middle of Braga
         dist = math.sqrt((lon - self.center_coords[0]) ** 2 + (lat - self.center_coords[1]) ** 2)
-        # Zonas a menos de ~4km do centro sofrem mais efeito do trânsito
-        center_bias = max(0.0, 1.0 - (dist / 0.04))
+        center_influence = max(0.0, 1.0 - (dist / 0.04))
+        raw_congestion = noise_val + (center_influence * 0.45)
 
-        # O 'noise_val' define ONDE está o trânsito agora.
-        # O 'rush_factor' define a INTENSIDADE máxima possível nesta hora.
-        # O 'center_bias' agrava a situação no centro.
+        # Will remove traffic the furthest it is from the center
+        traffic_threshold = 0.55 
 
-        congestion_level = noise_val * (0.5 + (center_bias * 0.5))
-
-        # Fórmula: Base (1.0) + (Intensidade da Hora * Congestionamento Local)
-        # Se for hora de ponta (2.0) e estivermos num pico de ruído (1.0), o fator será alto.
-        final_factor = 1.0 + ((rush_factor - 1.0) * congestion_level * 2.0)
-
-        return max(1.0, final_factor)
-
-    def _get_rush_hour_multiplier(self, hour: float) -> float:
-        """Define a intensidade global do trânsito consoante a hora."""
-        # Manhã (07h - 10h)
-        if 7 <= hour < 10:
-            return 1.6
-        # Almoço (12h - 14h)
-        elif 12 <= hour < 14:
-            return 1.3
-        # Tarde (17h - 20h)
-        elif 17 <= hour < 20:
-            return 1.8
-        # Madrugada
-        elif hour < 6 or hour > 23:
+        if raw_congestion < traffic_threshold:
             return 1.0
 
-        return 1.1
+        excess_traffic = raw_congestion - traffic_threshold
+
+        gain = rush_intensity * 5.0
+        
+        penalty = excess_traffic * gain
+        
+        return 1.0 + penalty
+
+    def _get_rush_intensity(self, hour: float) -> float:
+        """
+        Retorna a intensidade do caos entre 0.0 (calmo) e 1.0 (caos total).
+        """
+        # Manhã (07h30 - 09h30)
+        if 7.5 <= hour < 9.5:
+            return 0.7 
+        
+        # Almoço (12h - 14h)
+        elif 12 <= hour < 14:
+            return 0.3
+            
+        # Tarde (17h - 19h30) - Pico Máximo
+        elif 17 <= hour < 19.5:
+            return 0.9
+            
+        # Pré-noite (19h30 - 21h)
+        elif 19.5 <= hour < 21:
+            return 0.2
+            
+        # Madrugada / Noite
+        elif hour < 6.5 or hour > 22:
+            return 0.1
+            
+        # Base do dia
+        return 0.1
