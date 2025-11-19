@@ -15,6 +15,7 @@ from Simulation.request_simulation import (
     generate_new_requests_if_needed,
 )
 from Simulation.hotspots import HotspotManager
+from models.traffic import TrafficManager
 
 
 class Simulator:
@@ -41,7 +42,7 @@ class Simulator:
         self.requests_to_pickup: List[Request] = []
         self.requests_to_dropoff: List[Request] = []
 
-        self.current_time: float = 0.0
+        self.current_time: float = 8.0 * 60.0
         self.stats = SimulationStats()
 
         self.setup_new_map()
@@ -51,12 +52,13 @@ class Simulator:
         self.map = generate_map()
 
         self.hotspot_manager = HotspotManager(self.map)
+        self.traffic_manager = TrafficManager()
 
         all_nodes = list(self.map.nos)
 
         self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
 
-        self.current_time = 0.0  # 00:00
+        self.current_time = 8.0 * 60.0  # 08:00
 
         self.requests = generate_requests(
             self.map, all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time

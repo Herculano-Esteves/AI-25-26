@@ -45,13 +45,23 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
             v.current_route = []
             break
 
-        segment_distance, segment_total_time, segment_max_speed = edge_info
+        segment_distance, segment_total_time_base, segment_max_speed = edge_info
+        current_traffic_factor = 1.0
+        if simulator.traffic_manager:
+            # Calcula o trânsito na posição atual DO VEÍCULO e na hora DO SIMULADOR
+            current_traffic_factor = simulator.traffic_manager.get_traffic_factor(
+                v.position_node.position, simulator.current_time
+            )
+
+        # O tempo real para cruzar aumenta (velocidade diminui)
+        segment_total_time_real = segment_total_time_base * current_traffic_factor
 
         speed_km_per_min = 0.0
-        if segment_total_time > 0:
-            speed_km_per_min = segment_distance / segment_total_time
+        if segment_total_time_real > 0:
+            speed_km_per_min = segment_distance / segment_total_time_real
 
-        time_needed_to_finish_segment = segment_total_time - v.current_segment_progress_time
+        # Usa o tempo real para calcular progresso
+        time_needed_to_finish_segment = segment_total_time_real - v.current_segment_progress_time
 
         if time_remaining_in_tick < time_needed_to_finish_segment:
             # Save distance on stats
@@ -60,7 +70,7 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
 
             # Vehicle will not finish the segment this tick
             v.current_segment_progress_time += time_remaining_in_tick
-            _update_gui_coordinates(v, start_node, end_node, segment_total_time)
+            _update_gui_coordinates(v, start_node, end_node, segment_total_time_real)
             time_remaining_in_tick = 0.0
         else:
             # Save distance on stats

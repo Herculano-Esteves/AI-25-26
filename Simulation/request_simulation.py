@@ -389,7 +389,13 @@ def assign_pending_requests(simulator: "Simulator"):
                 continue
 
             # Pathfinding (A*)
-            path_info = find_a_star_route(simulator.map, v.position_node, req.start_node)
+            path_info = find_a_star_route(
+                simulator.map,
+                v.position_node,
+                req.start_node,
+                current_time=simulator.current_time,
+                traffic_manager=simulator.traffic_manager,
+            )
             if not path_info:
                 continue
 
@@ -433,7 +439,13 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
     dist_str = f"{v.remaining_km:.0f}km"
     print(f"[SA] {v.id} -> {request.id} (Prio {request.priority}). Bat: {dist_str}")
 
-    path_info = find_a_star_route(simulator.map, v.position_node, request.start_node)
+    path_info = find_a_star_route(
+        simulator.map,
+        v.position_node,
+        request.start_node,
+        current_time=simulator.current_time,
+        traffic_manager=simulator.traffic_manager,
+    )
     if path_info:
         path, _, _ = path_info
         v.current_route = path

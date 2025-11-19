@@ -1,11 +1,13 @@
 import heapq
 import math
-from typing import List, Optional, Dict, Set, Tuple
+from typing import List, Optional, Dict, Set, Tuple, TYPE_CHECKING
 from collections import defaultdict
 
 from models.node import Node
 from graph import CityGraph
 
+if TYPE_CHECKING:
+    from models.traffic import TrafficManager
 
 # A* Helper Functions
 
@@ -40,43 +42,30 @@ def _heuristic_distance(a: Node, b: Node) -> float:
     return calculate_time_minutes(distance_km, max_possible_speed_kmh)
 
 
-def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:
-    total_path = [current]
-    while current in came_from:
-        current = came_from[current]
-        total_path.append(current)
-    return list(reversed(total_path))
-
-
 # A* Implementation
 
 
 def find_a_star_route(
-    map: CityGraph, start_node: Node, end_node: Node
+    map: CityGraph,
+    start_node: Node,
+    end_node: Node,
+    current_time: float = 0.0,  # Instante do planeamento
+    traffic_manager: Optional["TrafficManager"] = None,
 ) -> Optional[Tuple[List[Node], float, float]]:
-    # returns (path, total_time, total_distance)
 
     closed_set: Set[Node] = set()
     open_set = []
-    # Heap stores: (f_score, hash(node), node)
     heapq.heappush(open_set, (0, hash(start_node), start_node))
-
     open_set_map = {start_node}
     came_from: Dict[Node, Node] = {}
-
-    # Lazy initialization
     g_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     g_score[start_node] = 0.0
-
     d_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     d_score[start_node] = 0.0
-
     f_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     f_score[start_node] = _heuristic_distance(start_node, end_node)
 
     while open_set:
-
-        # Node from the priority queue with the lowest f_score
         current_f, _, current = heapq.heappop(open_set)
 
         if current in open_set_map:
@@ -90,28 +79,35 @@ def find_a_star_route(
 
         closed_set.add(current)
 
-        # Explore Neighbors
         for neighbor in map.get_node_neighbours(current):
             if neighbor in closed_set:
                 continue
 
-            # Get the edge weight (distance, time)
             edge_info = map.connection_weight(current, neighbor)
             if edge_info is None:
                 continue
 
-            # A* optimizes by *time*
-            edge_distance, edge_time, _ = edge_info
+            edge_distance, edge_time_base, _ = edge_info
 
-            # Calculate the 'g' cost (time)
-            tentative_g_score = g_score[current] + edge_time
+            traffic_multiplier = 1.0
+            if traffic_manager:
+                # O planeador vê o trânsito como ele está AGORA.
+                mid_lon = (current.position[0] + neighbor.position[0]) / 2
+                mid_lat = (current.position[1] + neighbor.position[1]) / 2
 
-            # Check if this is a better path
+                traffic_multiplier = traffic_manager.get_traffic_factor(
+                    (mid_lon, mid_lat), current_time
+                )
+
+            # Tempo ajustado pelo trânsito atual
+            edge_time_real = edge_time_base * traffic_multiplier
+
+            tentative_g_score = g_score[current] + edge_time_real
+
             if tentative_g_score < g_score[neighbor]:
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g_score
                 d_score[neighbor] = d_score[current] + edge_distance
-
                 f_score[neighbor] = tentative_g_score + _heuristic_distance(neighbor, end_node)
 
                 if neighbor not in open_set_map:
@@ -119,3 +115,11 @@ def find_a_star_route(
                     open_set_map.add(neighbor)
 
     return None
+
+
+def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:
+    total_path = [current]
+    while current in came_from:
+        current = came_from[current]
+        total_path.append(current)
+    return list(reversed(total_path))

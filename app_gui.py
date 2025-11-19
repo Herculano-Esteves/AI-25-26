@@ -18,6 +18,8 @@ class MapApplication:
     ZOOM_OUT_FACTOR = 1 / 1.2  # Zoom-out
     PADDING_RESET = 40  # Extra pixels on reset
 
+    ZOOM_THRESHOLD_TRAFFIC = 10000.0
+
     # Visual constants
     BG_COLOR = "#2c2c2c"
     EDGE_COLOR = "#4a4a4a"
@@ -621,10 +623,28 @@ class MapApplication:
             vehicle_tag = f"vehicle_{v.id}"
             new_x, new_y = self._world_to_canvas(*v.map_coordinates)
             self.canvas.coords(vehicle_tag, new_x, new_y)
+
         self._draw_requests()
         self._draw_vehicles()
+
         self._draw_hotspots()
         self._draw_station_overlays()
+
+        # Redesenhar arestas com trânsito se o zoom for suficiente
+        if self.zoom > self.ZOOM_THRESHOLD_TRAFFIC:
+            # Limpa as arestas estáticas
+            self.canvas.delete("aresta")
+
+            c_width = self.canvas.winfo_width()
+            c_height = self.canvas.winfo_height()
+            margin = 100
+
+            # Desenha as arestas (agora com cor de trânsito pois o zoom é alto)
+            self._draw_edges(c_width, c_height, margin)
+
+            # Enviar para o fundo (Layering)
+            self.canvas.tag_lower("aresta")
+            self.canvas.tag_lower("aresta")
 
     def _on_resize(self, event):
         self.redraw_full_canvas()
@@ -696,16 +716,16 @@ class MapApplication:
         margin = 100
 
         # Static / Background
-        self._draw_edges(c_width, c_height, margin)
-        self._draw_nodes(c_width, c_height, margin)
+        self._draw_edges(c_width, c_height, margin)  # 1. Arestas
+        self._draw_nodes(c_width, c_height, margin)  # 2. Estações/Nós
 
-        # Static / Foreground
-        self._draw_hotspots()
-        self._draw_station_overlays()
+        # Static / Foreground (Hotspots e Overlays voltam a ficar em cima)
+        self._draw_hotspots()  # 3. Hotspots
+        self._draw_station_overlays()  # 4. Overlays das Estações
 
         # Dinamic / Foreground
-        self._draw_requests()
-        self._draw_vehicles()
+        self._draw_requests()  # 5. Pedidos
+        self._draw_vehicles()  # 6. Veículos (Topo)
 
         # Debug
         self.canvas.create_text(
@@ -717,6 +737,12 @@ class MapApplication:
         )
 
     def _draw_edges(self, c_width, c_height, margin):
+
+        # Flags
+        show_traffic = (self.zoom > self.ZOOM_THRESHOLD_TRAFFIC) and (
+            hasattr(self.simulator, "traffic_manager")
+        )
+
         for start_node, vizinhos in self.simulator.map.adj.items():
             x1, y1 = self._world_to_canvas(*start_node.position)
 
@@ -732,8 +758,29 @@ class MapApplication:
                     ):
                         continue
 
+                    # Cor base
+                    color = self.EDGE_COLOR
+                    width = 1
+
+                    if show_traffic and self.simulator.traffic_manager:
+                        # Calcular o fator no ponto médio da aresta
+                        mid_lon = (start_node.position[0] + end_node.position[0]) / 2
+                        mid_lat = (start_node.position[1] + end_node.position[1]) / 2
+
+                        factor = self.simulator.traffic_manager.get_traffic_factor(
+                            (mid_lon, mid_lat), self.simulator.current_time
+                        )
+
+                        if factor > 1.5:
+                            color = "#ff4444"  # Vermelho (Trânsito Intenso)
+                            width = 2
+                        elif factor > 1.1:
+                            color = "#ffbb33"  # Laranja/Amarelo (Trânsito Médio)
+                            width = 2
+                        # Mantemos cinzento (fluido)
+
                     self.canvas.create_line(
-                        x1, y1, x2, y2, fill=self.EDGE_COLOR, width=1, tags=("aresta",)
+                        x1, y1, x2, y2, fill=color, width=width, tags=("aresta",)
                     )
 
     def _draw_nodes(self, c_width, c_height, margin):
