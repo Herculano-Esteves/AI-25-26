@@ -262,6 +262,7 @@ class MapApplication:
         # Operations
         add_stat_row("h3", "Eficiência Operacional", "", True)
         add_stat_row("total_requests", "Pedidos (Ok/Fail):", "0 / 0")
+        add_stat_row("timeout_cancels", "Cancelados (Timeout):", "0")
         add_stat_row("kms_empty", "Km Vazios (%):", "0%")
         add_stat_row("total_co2", "Emissões CO2:", "0.00 kg")
         add_stat_row("loss_time_ev_gas", "Perda Tempo (EV vs Gas):", "0.0m vs 0.0m")
@@ -598,13 +599,18 @@ class MapApplication:
             text=f"{stats.total_requests_completed} / {stats.total_requests_failed}"
         )
 
+        # Cancelled
+        labels["timeout_cancels"].config(text=f"{stats.total_requests_cancelled_timeout}")
+
         empty_ratio = 0.0
         if stats.total_kms_driven > 0:
             empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven) * 100
-
-        # Car
         labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
+
+        # CO2
         labels["total_co2"].config(text=f"{stats.total_co2_emitted:.2f} kg")
+
+        # Lost Time
         labels["loss_time_ev_gas"].config(
             text=f"{stats.total_station_time_ev:.1f}m vs {stats.total_station_time_gas:.1f}m"
         )

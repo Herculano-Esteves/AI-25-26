@@ -13,6 +13,7 @@ from Simulation.vehicle_simulation import manage_vehicle
 from Simulation.request_simulation import (
     assign_pending_requests,
     generate_new_requests_if_needed,
+    check_timeouts,
 )
 from Simulation.hotspots import HotspotManager
 from models.traffic import TrafficManager
@@ -29,10 +30,10 @@ class Simulator:
     MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY
     MINUTES_PER_YEAR = MINUTES_PER_DAY * 365
     LOW_AUTONOMY_THRESHOLD = 50.0
-    NUM_EV_VEHICLES = 3
-    NUM_GAS_VEHICLES = 3
-    NUM_INITIAL_REQUESTS = 10
-    NUM_REQUESTS_TO_GENERATE = 4
+    NUM_EV_VEHICLES = 4
+    NUM_GAS_VEHICLES = 4
+    NUM_INITIAL_REQUESTS = 8
+    NUM_REQUESTS_TO_GENERATE = 3
     STATION_FAILURE_PROB_PER_TICK = 0.0001  # Prob of a station to fail per tick
     STATION_DOWNTIME_MINUTES = 120.0
 
@@ -90,6 +91,9 @@ class Simulator:
         self._update_station_failures(time_to_advance)
 
         generate_new_requests_if_needed(self)
+
+        check_timeouts(self)
+
         assign_pending_requests(self)
 
         self._calculate_step_stats(time_to_advance)
@@ -120,6 +124,7 @@ class Simulator:
         self.stats.total_co2_emitted += self.stats.step_co2_emitted
         self.stats.total_station_time_ev += self.stats.step_station_time_ev
         self.stats.total_station_time_gas += self.stats.step_station_time_gas
+        self.stats.total_requests_cancelled_timeout += self.stats.step_requests_cancelled_timeout
 
     def _update_station_failures(self, time_to_advance: float):
         stations_to_check = []

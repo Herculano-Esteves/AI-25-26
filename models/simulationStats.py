@@ -9,9 +9,8 @@ class SimulationStats:
 
         self.total_requests_completed: int = 0
         self.total_requests_failed: int = 0
-
+        self.total_requests_cancelled_timeout: int = 0
         self.total_co2_emitted: float = 0.0
-
         self.total_station_time_ev: float = 0.0
         self.total_station_time_gas: float = 0.0
 
@@ -37,6 +36,7 @@ class SimulationStats:
 
         self.step_station_time_ev: float = 0.0
         self.step_station_time_gas: float = 0.0
+        self.step_requests_cancelled_timeout: int = 0
 
         self.step_pending_requests: int = 0
         self.step_vehicles_available: int = 0
@@ -56,6 +56,7 @@ class SimulationStats:
 
         self.step_station_time_ev = 0.0
         self.step_station_time_gas = 0.0
+        self.step_requests_cancelled_timeout = 0
 
         self.step_pending_requests = 0
         self.step_vehicles_available = 0

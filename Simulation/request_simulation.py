@@ -11,6 +11,11 @@ if TYPE_CHECKING:
     from simulator import Simulator
 
 
+BASE_TIMEOUT_MINUTES = 30.0
+TIMEOUT_REDUCTION_PER_PRIORITY = 5.0
+CANCELLATION_PENALTY_EUR = 5.0  # Fee for client lost
+
+
 class PlanningConfig:
     """
     All the weights
@@ -46,10 +51,6 @@ class PlanningConfig:
 class StrategyManager:
     @staticmethod
     def identify_hotspots(simulator: "Simulator") -> List[Node]:
-        """
-        Retorna a lista de nós associados aos hotspots reais mapeados pelo HotspotManager.
-        Esta lista é usada para calcular a penalidade de isolamento (WEIGHT_ISOLATION).
-        """
         if not simulator.hotspot_manager:
             return []
 
@@ -57,7 +58,6 @@ class StrategyManager:
         for hotspot in simulator.hotspot_manager.hotspots:
             all_hotspot_nodes.update(hotspot.node_cache)
 
-        # Retorna uma lista de nós únicos que pertencem a qualquer hotspot real.
         return list(all_hotspot_nodes)
 
     @staticmethod
@@ -350,6 +350,33 @@ def simulated_annealing_solver(
         temp = max(temp * alpha, 0.05)
 
     return best_state.assignment
+
+
+def check_timeouts(simulator: "Simulator"):
+    """
+    Verifica se algum pedido na fila excedeu o tempo máximo de espera.
+    Prio 1: 30 min
+    Prio 5: 10 min
+    """
+    for i in range(len(simulator.requests) - 1, -1, -1):
+        req = simulator.requests[i]
+        age = simulator.current_time - req.creation_time
+
+        # Fórmula: Prio 1 -> 30m, Prio 5 -> 10m
+        # (req.priority - 1) * 5 => P1=0, P5=20
+        # Limit: 30 - 0 = 30, 30 - 20 = 10
+        limit = BASE_TIMEOUT_MINUTES - ((req.priority - 1) * TIMEOUT_REDUCTION_PER_PRIORITY)
+
+        if age > limit:
+            print(
+                f"[Timeout] Pedido {req.id} (Prio {req.priority}) cancelado! Esperou {age:.1f} min > {limit} min."
+            )
+
+            simulator.requests.pop(i)
+
+            simulator.stats.step_requests_cancelled_timeout += 1
+            simulator.stats.step_operational_cost += CANCELLATION_PENALTY_EUR
+            simulator.stats.total_requests_failed += 1
 
 
 def assign_pending_requests(simulator: "Simulator"):
