@@ -155,19 +155,30 @@ class MapApplication:
         vehicle_tab = ttk.Frame(self.notebook)
         self.notebook.add(vehicle_tab, text="Frota")
 
-        cols = ("id", "status", "autonomy", "request", "motor", "capacidade", "co2", "avarias")
+        cols = (
+            "id",
+            "status",
+            "autonomy",
+            "request",
+            "motor",
+            "capacidade",
+            "co2",
+            "station_time",
+            "avarias",
+        )
         self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
 
         # Headers
         headers = {
-            "id": ("ID", 40),
-            "status": ("Estado", 100),
-            "autonomy": ("Km", 70),
-            "request": ("Req.", 40),
-            "motor": ("Tipo", 60),
-            "capacidade": ("Cap.", 40),
-            "co2": ("CO2 (kg)", 60),
-            "avarias": ("⚠", 30),
+            "id": ("ID", 35),
+            "status": ("Estado", 85),
+            "autonomy": ("Bat.", 50),
+            "request": ("Req.", 35),
+            "motor": ("Tipo", 50),
+            "capacidade": ("Pax", 30),
+            "co2": ("CO2(kg)", 50),
+            "station_time": ("T.Abast", 50),
+            "avarias": ("⚠", 25),
         }
         for col, (text, width) in headers.items():
             self.vehicle_tree.heading(col, text=text)
@@ -253,6 +264,7 @@ class MapApplication:
         add_stat_row("total_requests", "Pedidos (Ok/Fail):", "0 / 0")
         add_stat_row("kms_empty", "Km Vazios (%):", "0%")
         add_stat_row("total_co2", "Emissões CO2:", "0.00 kg")
+        add_stat_row("loss_time_ev_gas", "Perda Tempo (EV vs Gas):", "0.0m vs 0.0m")
 
         # Times
         add_stat_row("h4", "Tempo de Serviço (Minutos)", "", True)
@@ -524,6 +536,7 @@ class MapApplication:
                 v.motor.name[0:4],  # ELEC/COMB
                 v.passenger_capacity,
                 f"{v.co2_emitted:.2f}",
+                f"{v.total_station_time:.1f}",
                 v.times_borken,
             )
             self.vehicle_tree.insert("", tk.END, values=values)
@@ -588,9 +601,13 @@ class MapApplication:
         empty_ratio = 0.0
         if stats.total_kms_driven > 0:
             empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven) * 100
-        labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
 
+        # Car
+        labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
         labels["total_co2"].config(text=f"{stats.total_co2_emitted:.2f} kg")
+        labels["loss_time_ev_gas"].config(
+            text=f"{stats.total_station_time_ev:.1f}m vs {stats.total_station_time_gas:.1f}m"
+        )
 
         # Times
         # Wait time (Creation -> Pickup)

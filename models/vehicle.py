@@ -40,6 +40,7 @@ class Vehicle:
         "time_stopped",
         "map_coordinates",
         "co2_emitted",
+        "total_station_time",
     )
 
     def __init__(
@@ -64,7 +65,6 @@ class Vehicle:
         self.remaining_km = remaining_km
         self.condition = condition
         self.times_borken = 0
-        self.co2_emitted: float = 0.0
 
         if self.remaining_km > self.max_km:
             self.remaining_km = self.max_km
@@ -73,11 +73,12 @@ class Vehicle:
         self.current_route = current_route if current_route is not None else []
 
         # This index points to the START node of the current segment
-        # Example: index 0 means moving from route[0] to route[1]
         self.current_segment_index = 0
         self.current_segment_progress_time: float = 0.0
 
         self.time_stopped: float = 0.0  # Time penalty
+        self.total_station_time: float = 0.0  #  Total time spent refueling
+        self.co2_emitted: float = 0.0  # Total CO2 emitted
 
         # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position

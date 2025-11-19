@@ -187,7 +187,6 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
         v.time_stopped = 0.0
 
     elif v.condition == VehicleCondition.AT_STATION:
-        # TODO: Logic for finishing refueling
         pass
 
 
@@ -210,13 +209,19 @@ def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_ad
         _handle_refueling_at_station(simulator, v, time_to_advance)
 
 
-# Depois adicionar procura inteligente de estações pois a velocidade de carregamento varia
 def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_advance: float):
-
+    """
+    Gere o tempo de paragem para recarga (EV) ou reabastecimento (Gas).
+    """
     v.time_stopped += time_to_advance
+    v.total_station_time += time_to_advance
 
     if v.motor == Motor.ELECTRIC:
+        simulator.stats.step_station_time_ev += time_to_advance
+    else:
+        simulator.stats.step_station_time_gas += time_to_advance
 
+    if v.motor == Motor.ELECTRIC:
         node = v.position_node
         rate_km_per_hour = node.energy_recharge_rate_kw
 
@@ -239,7 +244,7 @@ def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_adv
             v.remaining_km = v.max_km
             v.condition = VehicleCondition.AVAILABLE
             v.time_stopped = 0.0
-            print(f"[Vehicle] {v.id} (Gas) reabastecimento completo.")
+            print(f"[Vehicle] {v.id} (Gas) reabastecimento completo após 5 min.")
 
 
 def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
@@ -297,7 +302,6 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
 def _update_gui_coordinates(
     v: Vehicle, start_node: Node, end_node: Node, segment_total_time: float
 ):
-    # Interpolates the vehicle's (x, y) coordinates for the GUI.
     if segment_total_time == 0:
         progress = 1.0
     else:
@@ -316,13 +320,10 @@ def _record_vehicle_movement_stats(simulator: "Simulator", v: Vehicle, distance_
     cost = distance_this_tick * v.price_per_km
     stats.step_operational_cost += cost
 
-    # Total km
     stats.step_kms_driven += distance_this_tick
 
-    # CO2
     if v.motor == Motor.COMBUSTION:
         emitted_kg = (distance_this_tick * CO2_GRAMS_PER_KM_COMBUSTION) / 1000.0
-
         v.co2_emitted += emitted_kg
         stats.step_co2_emitted += emitted_kg
 
