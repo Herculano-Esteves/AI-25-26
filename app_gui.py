@@ -84,7 +84,7 @@ class MapApplication:
         btn_frame = ttk.Frame(control_frame)
         btn_frame.pack(side=tk.LEFT, padx=10, pady=5)
 
-        # BOTÃO ALTERADO AQUI
+        # BOTÃO
         self.btn_generate_map = ttk.Button(
             btn_frame, text="Reiniciar Simulação", command=self.setup_new_map
         )
@@ -104,24 +104,26 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=2)
 
-        # --- INFO PANEL (RIGHT SIDE) ---
+        # INFO PANEL (RIGHT SIDE)
         info_panel = ttk.Frame(control_frame)
         info_panel.pack(side=tk.RIGHT, padx=15, pady=2)
 
-        # 1. Date (Small, Top)
+        # Date (Small, Top)
         self.date_label = ttk.Label(
             info_panel, text="Ano 0 - Dia 0", font=("Arial", 9), foreground="#666666"
         )
         self.date_label.pack(side=tk.TOP, anchor="e")
 
-        # 2. Time (Big, Middle)
+        # Time (Big, Middle)
         self.time_label = ttk.Label(
             info_panel, text="08:00", font=("Arial", 22, "bold"), foreground="#000000"
         )
         self.time_label.pack(side=tk.TOP, anchor="e")
 
-        # 3. Weather (Medium, Bottom)
-        self.weather_label = ttk.Label(info_panel, text="--", font=("Arial", 11))
+        # Weather (Medium, Bottom)
+        self.weather_label = ttk.Label(
+            info_panel, text="--", font=("Arial", 11)
+        )
         self.weather_label.pack(side=tk.TOP, anchor="e")
 
         # FPS Label (Left of the clock)
@@ -653,26 +655,25 @@ class MapApplication:
             self.simulator.get_current_time_of_day()
         )
 
-        # Separar em 2 labels para evitar "tremeliques"
         self.date_label.config(text=f"Ano {current_year} - Dia {current_day}")
         self.time_label.config(text=f"{current_hour:02d}:{current_minute:02d}")
 
-        # --- ATUALIZAR METEOROLOGIA ---
+        # METEOROLOGIA
         if hasattr(self.simulator, "traffic_manager"):
             cond = self.simulator.traffic_manager.current_weather_condition
-
-            color = "#000000"  # Preto como base no novo painel claro
+            
+            color = "#000000"
             icon = "☀"
-            if cond == "Nublado":
+            if cond == "Nublado": 
                 icon = "☁"
                 color = "#555555"
-            elif cond == "Chuva":
+            elif cond == "Chuva": 
                 icon = "🌧"
                 color = "#0066cc"
-            elif cond == "Tempestade":
+            elif cond == "Tempestade": 
                 icon = "⛈"
                 color = "#cc0000"
-
+                
             self.weather_label.config(text=f"{icon} {cond}", foreground=color)
 
     def update_dynamic_visuals(self):

@@ -47,6 +47,9 @@ class PlanningConfig:
 
     BACKLOG_BASE_PENALTY = 160.0  # Custo fixo por deixar alguém para trás
 
+    # Profit Optimization
+    WEIGHT_PROFIT = 10.0  # Multiplier for profit (negative cost)
+
 
 class StrategyManager:
     @staticmethod
@@ -158,6 +161,16 @@ def calculate_detailed_cost(
             battery_factor = min(1.0, vehicle.remaining_km / safe_range)
 
             cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY * battery_factor
+
+    # Operational Cost = (Distance to Pickup + Trip Distance) * Vehicle Cost per Km
+    operational_cost = (dist_to_pickup + request.path_distance) * vehicle.price_per_km
+    
+    # Profit = Revenue - Operational Cost
+    projected_profit = request.price - operational_cost
+    
+    # Invert Profit for Cost Function (Higher Profit = Lower Cost)
+    # We subtract profit * weight.
+    cost -= projected_profit * PlanningConfig.WEIGHT_PROFIT
 
     return cost
 

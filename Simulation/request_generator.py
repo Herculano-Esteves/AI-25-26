@@ -182,7 +182,12 @@ class RequestGenerator:
         eco_pref = self.rng.random() < 0.3
 
         # Price based on distance
-        price = self.BASE_FARE + (real_dist * self.PRICE_PER_KM)
+        # UberXL Logic: Higher price for larger capacity
+        price_multiplier = 1.0
+        if pax > 4:
+            price_multiplier = 1.3
+
+        price = (self.BASE_FARE + (real_dist * self.PRICE_PER_KM)) * price_multiplier
 
         return Request(
             start_node=start_node,
