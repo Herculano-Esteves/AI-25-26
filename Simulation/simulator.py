@@ -113,9 +113,13 @@ class Simulator:
 
         # Total values
         self.stats.total_kms_driven += self.stats.step_kms_driven
+        self.stats.total_kms_driven_ev += self.stats.step_kms_driven_ev
+        self.stats.total_kms_driven_gas += self.stats.step_kms_driven_gas
         self.stats.total_operational_cost += self.stats.step_operational_cost
         self.stats.total_kms_driven_with_passenger += self.stats.step_kms_driven_with_passenger
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
+        self.stats.total_kms_driven_empty_ev += self.stats.step_kms_driven_empty_ev
+        self.stats.total_kms_driven_empty_gas += self.stats.step_kms_driven_empty_gas
 
         self.stats.total_co2_emitted += self.stats.step_co2_emitted
 

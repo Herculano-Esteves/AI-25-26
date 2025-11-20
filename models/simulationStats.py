@@ -6,6 +6,10 @@ class SimulationStats:
         self.total_kms_driven: float = 0.0
         self.total_kms_driven_with_passenger: float = 0.0
         self.total_kms_driven_empty: float = 0.0
+        self.total_kms_driven_ev: float = 0.0
+        self.total_kms_driven_gas: float = 0.0
+        self.total_kms_driven_empty_ev: float = 0.0
+        self.total_kms_driven_empty_gas: float = 0.0
 
         self.total_requests_completed: int = 0
         self.total_requests_failed: int = 0
@@ -30,8 +34,12 @@ class SimulationStats:
         self.step_operational_cost: float = 0.0
         self.step_revenue_generated: float = 0.0
         self.step_kms_driven: float = 0.0
+        self.step_kms_driven_ev: float = 0.0
+        self.step_kms_driven_gas: float = 0.0
         self.step_kms_driven_with_passenger: float = 0.0
         self.step_kms_driven_empty: float = 0.0
+        self.step_kms_driven_empty_ev: float = 0.0
+        self.step_kms_driven_empty_gas: float = 0.0
         self.step_co2_emitted: float = 0.0
 
         self.step_station_time_ev: float = 0.0
@@ -50,8 +58,12 @@ class SimulationStats:
         self.step_operational_cost = 0.0
         self.step_revenue_generated = 0.0
         self.step_kms_driven = 0.0
+        self.step_kms_driven_ev = 0.0
+        self.step_kms_driven_gas = 0.0
         self.step_kms_driven_with_passenger = 0.0
         self.step_kms_driven_empty = 0.0
+        self.step_kms_driven_empty_ev = 0.0
+        self.step_kms_driven_empty_gas = 0.0
         self.step_co2_emitted = 0.0
 
         self.step_station_time_ev = 0.0

@@ -180,6 +180,8 @@ class MapApplication:
             "capacidade",
             "co2",
             "station_time",
+            "ocup_atual",
+            "ocup_media",
             "avarias",
         )
         self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
@@ -194,6 +196,8 @@ class MapApplication:
             "capacidade": ("Pax", 30),
             "co2": ("CO2(kg)", 50),
             "station_time": ("T.Abast", 50),
+            "ocup_atual": ("Ocup.Atual", 60),
+            "ocup_media": ("Ocup.Média", 60),
             "avarias": ("⚠", 25),
         }
         for col, (text, width) in headers.items():
@@ -280,6 +284,8 @@ class MapApplication:
         add_stat_row("total_requests", "Pedidos (Ok/Fail):", "0 / 0")
         add_stat_row("timeout_cancels", "Cancelados (Timeout):", "0")
         add_stat_row("kms_empty", "Km Vazios (%):", "0%")
+        add_stat_row("kms_empty_ev", "Km Vazios EV (%):", "0%")
+        add_stat_row("kms_empty_gas", "Km Vazios Gas (%):", "0%")
         add_stat_row("total_co2", "Emissões CO2:", "0.00 kg")
         add_stat_row("loss_time_ev_gas", "Perda Tempo (EV vs Gas):", "0.0m vs 0.0m")
 
@@ -554,6 +560,8 @@ class MapApplication:
                 v.passenger_capacity,
                 f"{v.co2_emitted:.2f}",
                 f"{v.total_station_time:.1f}",
+                f"{(v.request.passenger_capacity / v.passenger_capacity * 100):.0f}%" if v.request else "0%",
+                f"{(v.sum_occupancy / v.total_trips * 100):.0f}%" if v.total_trips > 0 else "0%",
                 v.times_borken,
             )
             self.vehicle_tree.insert("", tk.END, values=values)
@@ -622,6 +630,16 @@ class MapApplication:
         if stats.total_kms_driven > 0:
             empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven) * 100
         labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
+
+        ev_empty_ratio = 0.0
+        if stats.total_kms_driven_ev > 0:
+            ev_empty_ratio = (stats.total_kms_driven_empty_ev / stats.total_kms_driven_ev) * 100
+        labels["kms_empty_ev"].config(text=f"{ev_empty_ratio:.1f}%")
+
+        gas_empty_ratio = 0.0
+        if stats.total_kms_driven_gas > 0:
+            gas_empty_ratio = (stats.total_kms_driven_empty_gas / stats.total_kms_driven_gas) * 100
+        labels["kms_empty_gas"].config(text=f"{gas_empty_ratio:.1f}%")
 
         # CO2
         labels["total_co2"].config(text=f"{stats.total_co2_emitted:.2f} kg")

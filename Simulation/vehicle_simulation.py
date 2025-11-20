@@ -178,6 +178,12 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
             stats.step_revenue_generated += v.request.price
 
             simulator.requests_to_dropoff.remove(v.request)
+            
+            # Occupancy Stats
+            occupancy = v.request.passenger_capacity / v.passenger_capacity
+            v.total_trips += 1
+            v.sum_occupancy += occupancy
+            
         v.condition = VehicleCondition.AVAILABLE
         v.request = None
 
@@ -321,6 +327,10 @@ def _record_vehicle_movement_stats(simulator: "Simulator", v: Vehicle, distance_
     stats.step_operational_cost += cost
 
     stats.step_kms_driven += distance_this_tick
+    if v.motor == Motor.ELECTRIC:
+        stats.step_kms_driven_ev += distance_this_tick
+    else:
+        stats.step_kms_driven_gas += distance_this_tick
 
     if v.motor == Motor.COMBUSTION:
         emitted_kg = (distance_this_tick * CO2_GRAMS_PER_KM_COMBUSTION) / 1000.0
@@ -332,3 +342,7 @@ def _record_vehicle_movement_stats(simulator: "Simulator", v: Vehicle, distance_
 
     elif v.condition in [VehicleCondition.ON_WAY_TO_CLIENT, VehicleCondition.ON_WAY_TO_STATION]:
         stats.step_kms_driven_empty += distance_this_tick
+        if v.motor == Motor.ELECTRIC:
+            stats.step_kms_driven_empty_ev += distance_this_tick
+        else:
+            stats.step_kms_driven_empty_gas += distance_this_tick

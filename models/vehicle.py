@@ -41,6 +41,8 @@ class Vehicle:
         "map_coordinates",
         "co2_emitted",
         "total_station_time",
+        "total_trips",
+        "sum_occupancy",
     )
 
     def __init__(
@@ -79,6 +81,9 @@ class Vehicle:
         self.time_stopped: float = 0.0  # Time penalty
         self.total_station_time: float = 0.0  #  Total time spent refueling
         self.co2_emitted: float = 0.0  # Total CO2 emitted
+        
+        self.total_trips: int = 0
+        self.sum_occupancy: float = 0.0
 
         # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position
