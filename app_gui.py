@@ -639,7 +639,7 @@ class MapApplication:
             self.simulator.get_current_time_of_day()
         )
 
-        # Format the string (e.g., "Dia 0 - 08:05")
+        # Format the string ("Dia 0 - 08:05")
         time_str = (
             f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
         )
@@ -658,19 +658,16 @@ class MapApplication:
         self._draw_hotspots()
         self._draw_station_overlays()
 
-        # Redesenhar arestas com trânsito se o zoom for suficiente
+        # Draw traffic
         if self.zoom > self.ZOOM_THRESHOLD_TRAFFIC:
-            # Limpa as arestas estáticas
             self.canvas.delete("aresta")
 
             c_width = self.canvas.winfo_width()
             c_height = self.canvas.winfo_height()
             margin = 100
 
-            # Desenha as arestas (agora com cor de trânsito pois o zoom é alto)
             self._draw_edges(c_width, c_height, margin)
 
-            # Enviar para o fundo (Layering)
             self.canvas.tag_lower("aresta")
             self.canvas.tag_lower("aresta")
 
@@ -744,16 +741,15 @@ class MapApplication:
         margin = 100
 
         # Static / Background
-        self._draw_edges(c_width, c_height, margin)  # 1. Arestas
-        self._draw_nodes(c_width, c_height, margin)  # 2. Estações/Nós
+        self._draw_edges(c_width, c_height, margin)  # Arestas
+        self._draw_nodes(c_width, c_height, margin)  # Estações
 
-        # Static / Foreground (Hotspots e Overlays voltam a ficar em cima)
-        self._draw_hotspots()  # 3. Hotspots
-        self._draw_station_overlays()  # 4. Overlays das Estações
+        self._draw_hotspots()  # Hotspots
+        self._draw_station_overlays()  # Overlays das Estações
 
         # Dinamic / Foreground
-        self._draw_requests()  # 5. Pedidos
-        self._draw_vehicles()  # 6. Veículos (Topo)
+        self._draw_requests()  # Pedidos
+        self._draw_vehicles()  # Veículos
 
         # Debug
         self.canvas.create_text(
@@ -786,12 +782,10 @@ class MapApplication:
                     ):
                         continue
 
-                    # Cor base
                     color = self.EDGE_COLOR
                     width = 1
 
                     if show_traffic and self.simulator.traffic_manager:
-                        # Calcular o fator no ponto médio da aresta
                         mid_lon = (start_node.position[0] + end_node.position[0]) / 2
                         mid_lat = (start_node.position[1] + end_node.position[1]) / 2
 
@@ -800,12 +794,11 @@ class MapApplication:
                         )
 
                         if factor > 1.5:
-                            color = "#ff4444"  # Vermelho (Trânsito Intenso)
+                            color = "#ff4444"
                             width = 2
                         elif factor > 1.1:
-                            color = "#ffbb33"  # Laranja/Amarelo (Trânsito Médio)
+                            color = "#ffbb33"
                             width = 2
-                        # Mantemos cinzento (fluido)
 
                     self.canvas.create_line(
                         x1, y1, x2, y2, fill=color, width=width, tags=("aresta",)

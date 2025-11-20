@@ -91,7 +91,7 @@ class TrafficManager:
         elif 12 <= hour < 14:
             return 0.3
 
-        # Tarde (17h - 19h30) - Pico Máximo
+        # Tarde (17h - 19h30)
         elif 17 <= hour < 19.5:
             return 0.9
 

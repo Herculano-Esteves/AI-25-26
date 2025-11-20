@@ -51,7 +51,7 @@ class Simulator:
 
         self.hotspot_manager = HotspotManager(self.map)
         self.traffic_manager = TrafficManager()
-        
+
         # Inicializar o Gerador de Pedidos (Seed fixa para determinismo)
         self.request_generator = RequestGenerator(self.map, seed=12345)
 
@@ -76,7 +76,7 @@ class Simulator:
 
         current_hour = self.get_current_hour()
         self.hotspot_manager.update(current_hour)
-        
+
         # O gerador verifica se passou tempo suficiente para um novo cliente ligar
         self.request_generator.update(self.current_time, self.requests)
 
@@ -84,7 +84,7 @@ class Simulator:
             manage_vehicle(self, v, time_to_advance)
 
         self._update_station_failures(time_to_advance)
-        
+
         check_timeouts(self)
         assign_pending_requests(self)
 
@@ -112,12 +112,12 @@ class Simulator:
         self.stats.total_operational_cost += self.stats.step_operational_cost
         self.stats.total_kms_driven_with_passenger += self.stats.step_kms_driven_with_passenger
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
-        
+
         self.stats.total_co2_emitted += self.stats.step_co2_emitted
-        
+
         self.stats.total_station_time_ev += self.stats.step_station_time_ev
         self.stats.total_station_time_gas += self.stats.step_station_time_gas
-        
+
         self.stats.total_requests_cancelled_timeout += self.stats.step_requests_cancelled_timeout
 
     def _update_station_failures(self, time_to_advance: float):

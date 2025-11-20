@@ -209,17 +209,6 @@ def create_vehicle_fleet(all_nodes: List[Node], num_ev: int, num_gas: int) -> Li
     return veiculos
 
 
-def generate_requests(
-    map: CityGraph, all_nodes: List[Node], num_requests: int, creation_time: float
-) -> List[Request]:
-
-    requests = []
-    for _ in range(num_requests):
-        requests.append(generate_random_request(map, all_nodes, creation_time))
-    print(f"Pedidos gerados: {len(requests)} requests iniciais criados.")
-    return requests
-
-
 def gas_ev_station_grant_existance(city_map: CityGraph):
     all_nodes = list(city_map.nos)
     if not any(n.energy_chargers > 0 for n in all_nodes):
@@ -232,70 +221,3 @@ def gas_ev_station_grant_existance(city_map: CityGraph):
         no_a_converter = random.choice(all_nodes)
         no_a_converter.gas_pumps = random.randint(2, 4)
         city_map.gas_stations.append(no_a_converter)
-
-
-def generate_random_request(
-    map: CityGraph, nos: List[Node], creation_time: float, force_start_node: Optional[Node] = None
-) -> Request:
-    if force_start_node:
-        start_node = force_start_node
-    else:
-        start_node = random.choice(nos)
-
-    end_node = random.choice(nos)
-    while start_node == end_node:
-        end_node = random.choice(nos)
-
-    price = 0.0
-    path, time, distance = None, 0.0, 0.0
-
-    result = find_a_star_route(map, start_node, end_node)
-    if result:
-        path, time, distance = result
-        price = BASE_FARE + (distance * PRICE_PER_KM)
-
-    req_priority = random.randint(1, 5)
-
-    # Nearest stations from the end_node using heurística for efficiency
-    nearest_ev_path = None
-    nearest_ev_dist = float("inf")
-
-    if map.ev_stations:
-        closest_ev_node = min(map.ev_stations, key=lambda s: _heuristic_distance(end_node, s))
-
-        # Calculate only A* for the closest station
-        path_info = find_a_star_route(map, end_node, closest_ev_node)
-        if path_info:
-            nearest_ev_path, _, nearest_ev_dist = path_info
-        else:
-            nearest_ev_dist = _heuristic_distance(end_node, closest_ev_node)
-
-    nearest_gas_path = None
-    nearest_gas_dist = float("inf")
-
-    if map.gas_stations:
-        closest_gas_node = min(map.gas_stations, key=lambda s: _heuristic_distance(end_node, s))
-
-        # Calculate only A* for the closest station
-        path_info = find_a_star_route(map, end_node, closest_gas_node)
-        if path_info:
-            nearest_gas_path, _, nearest_gas_dist = path_info
-        else:
-            nearest_gas_dist = _heuristic_distance(end_node, closest_gas_node)
-
-    return Request(
-        start_node=start_node,
-        end_node=end_node,
-        passenger_capacity=random.randint(1, 7),
-        creation_time=creation_time,
-        price=price,
-        priority=req_priority,
-        environmental_preference=True if random.randint(1, 4) == 1 else False,
-        path=path,
-        path_distance=distance,
-        path_time=time,
-        nearest_ev_station_path=nearest_ev_path,
-        nearest_ev_station_distance=nearest_ev_dist,
-        nearest_gas_station_path=nearest_gas_path,
-        nearest_gas_station_distance=nearest_gas_dist,
-    )

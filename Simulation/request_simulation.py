@@ -149,7 +149,7 @@ def calculate_detailed_cost(
     cost += dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
 
     # Custo de Oportunidade Inteligente
-    # Só penaliza EV por não levar "Eco" se tiver bateria confortável (> 40% do critico)
+    # Só penaliza EV por não levar "Eco" se tiver bateria confortável
     # Se estiver a morrer, aceita qualquer coisa sem penalidade de oportunidade.
     if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
         if has_eco_in_backlog:
