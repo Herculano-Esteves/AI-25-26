@@ -80,9 +80,9 @@ class MapApplication:
         control_frame = ttk.LabelFrame(self.root, text="Controlos de Simulação")
         control_frame.pack(side=tk.TOP, fill=tk.X, pady=5, padx=5)
 
-        # Buttons
+        # Buttons Left
         btn_frame = ttk.Frame(control_frame)
-        btn_frame.pack(side=tk.LEFT, padx=10)
+        btn_frame.pack(side=tk.LEFT, padx=10, pady=5)
 
         self.btn_generate_map = ttk.Button(
             btn_frame, text="Gerar Novo Mapa", command=self.setup_new_map
@@ -103,16 +103,29 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=2)
 
-        # FPS Label
-        self.fps_label = ttk.Label(control_frame, text="FPS: 0", font=("Consolas", 10))
-        self.fps_label.pack(side=tk.RIGHT, padx=15)
+        # INFO PANEL (RIGHT SIDE)
+        info_panel = ttk.Frame(control_frame)
+        info_panel.pack(side=tk.RIGHT, padx=15, pady=2)
 
-        # Clock
-        ttk.Style().configure("Clock.TLabel", font=("Arial", 16, "bold"))
-        self.clock_label = ttk.Label(
-            control_frame, text="Ano 0 - Dia 0 - 00:00", style="Clock.TLabel"
+        # 1. Date (Small, Top)
+        self.date_label = ttk.Label(
+            info_panel, text="Ano 0 - Dia 0", font=("Arial", 9), foreground="#666666"
         )
-        self.clock_label.pack(side=tk.RIGHT, padx=15)
+        self.date_label.pack(side=tk.TOP, anchor="e")
+
+        # 2. Time (Big, Middle)
+        self.time_label = ttk.Label(
+            info_panel, text="08:00", font=("Arial", 22, "bold"), foreground="#000000"
+        )
+        self.time_label.pack(side=tk.TOP, anchor="e")
+
+        # 3. Weather (Medium, Bottom)
+        self.weather_label = ttk.Label(info_panel, text="--", font=("Arial", 11))
+        self.weather_label.pack(side=tk.TOP, anchor="e")
+
+        # FPS Label (Left of the clock)
+        self.fps_label = ttk.Label(control_frame, text="FPS: 0", font=("Consolas", 9))
+        self.fps_label.pack(side=tk.RIGHT, padx=20)
 
         # MAIN SPLIT VIEW
         self.main_paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
@@ -639,12 +652,25 @@ class MapApplication:
             self.simulator.get_current_time_of_day()
         )
 
-        # Format the string ("Dia 0 - 08:05")
-        time_str = (
-            f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
-        )
+        self.date_label.config(text=f"Ano {current_year} - Dia {current_day}")
+        self.time_label.config(text=f"{current_hour:02d}:{current_minute:02d}")
 
-        self.clock_label.config(text=time_str)
+        if hasattr(self.simulator, "traffic_manager"):
+            cond = self.simulator.traffic_manager.current_weather_condition
+
+            color = "#000000"  # Preto como base no novo painel claro
+            icon = "☀"
+            if cond == "Nublado":
+                icon = "☁"
+                color = "#555555"
+            elif cond == "Chuva":
+                icon = "🌧"
+                color = "#0066cc"
+            elif cond == "Tempestade":
+                icon = "⛈"
+                color = "#cc0000"
+
+            self.weather_label.config(text=f"{icon} {cond}", foreground=color)
 
     def update_dynamic_visuals(self):
         for v in self.simulator.vehicles:
@@ -658,7 +684,6 @@ class MapApplication:
         self._draw_hotspots()
         self._draw_station_overlays()
 
-        # Draw traffic
         if self.zoom > self.ZOOM_THRESHOLD_TRAFFIC:
             self.canvas.delete("aresta")
 
