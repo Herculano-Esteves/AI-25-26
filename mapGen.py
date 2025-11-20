@@ -173,39 +173,86 @@ def _parse_maxspeed(ms):
     return None
 
 
-def _create_vehicle(
-    id_prefix: str,
+def _create_custom_vehicle(
+    id_str: str,
     motor: Motor,
     loc: Node,
-    cost_per_km: float,
-    range: int,
-    max_range: int,
+    pax_capacity: int,
+    max_range: float,
+    base_cost: float,
+    rng: random.Random,
 ) -> Vehicle:
+
+    # Ajuste de custo por capacidade: Carros maiores gastam mais
+    # 7 pax = +15%, 3 pax = -5%
+    cost_mult = 1.0
+    if pax_capacity == 7:
+        cost_mult = 1.15
+    elif pax_capacity == 3:
+        cost_mult = 0.95
+
+    final_cost = base_cost * cost_mult
+
+    # Começa com  45% e 55% de depósito
+    start_range = max_range * rng.uniform(0.45, 0.55)
+
     return Vehicle(
-        f"V-{id_prefix}",
-        motor,
-        loc,
-        random.randint(3, 7),
-        cost_per_km,
-        random.randint(range, max_range),
-        random.randint(50, range),
+        id=id_str,
+        motor=motor,
+        position_node=loc,
+        passenger_capacity=pax_capacity,
+        price_per_km=final_cost,
+        max_km=max_range,
+        remaining_km=start_range,
     )
 
 
-def create_vehicle_fleet(all_nodes: List[Node], num_ev: int, num_gas: int) -> List[Vehicle]:
+def create_vehicle_fleet(
+    all_nodes: List[Node], num_ev: int, num_gas: int, seed: int = 42
+) -> List[Vehicle]:
+    """
+    Cria a frota de veículos personalizada de forma determinística.
+    Requisitos:
+    - 5 EVs + 5 Gas (Ignora num_ev/num_gas se não bater certo com 10, mas usaremos lógica adaptável)
+    - Capacidades: 4x(7pax), 4x(4pax), 2x(3pax)
+    - Ranges: 5 níveis crescentes por tipo
+    """
     veiculos = []
+    rng = random.Random(seed)
 
-    # Generates eletric vehicles
-    for i in range(num_ev):
-        loc = random.choice(all_nodes)
-        veiculos.append(_create_vehicle(f"EV{i+1}", Motor.ELECTRIC, loc, 0.035, 50, 650))
+    # Configuração Fixa da Frota (Total 10)
+    # Tuplos: (Motor, Capacidade, Nível de Range 1-5, Custo Base)
+    # Range EV: 200 - 400 km
+    # Range Gas: 600 - 900 km
+    # EVs: 2x7, 2x4, 1x3
+    # Gas: 2x7, 2x4, 1x3
 
-    # Generates combustion vehicles
-    for i in range(num_gas):
-        loc = random.choice(all_nodes)
-        veiculos.append(_create_vehicle(f"GAS{i+1}", Motor.COMBUSTION, loc, 0.098, 50, 900))
+    fleet_specs = [
+        # --- ELÉTRICOS (Custo base menor: 0.04€/km) ---
+        (Motor.ELECTRIC, 3, 250, "EV-Smart"),  # Pequeno, range curto
+        (Motor.ELECTRIC, 4, 300, "EV-Sedan1"),  # Médio, range médio
+        (Motor.ELECTRIC, 4, 350, "EV-Sedan2"),  # Médio, range bom
+        (Motor.ELECTRIC, 7, 380, "EV-Van1"),  # Grande, range muito bom
+        (Motor.ELECTRIC, 7, 420, "EV-Van2"),  # Grande, range topo
+        # --- COMBUSTÃO (Custo base maior: 0.12€/km) ---
+        (Motor.COMBUSTION, 3, 600, "Gas-Compact"),
+        (Motor.COMBUSTION, 4, 700, "Gas-Sedan1"),
+        (Motor.COMBUSTION, 4, 750, "Gas-Sedan2"),
+        (Motor.COMBUSTION, 7, 800, "Gas-Van1"),
+        (Motor.COMBUSTION, 7, 900, "Gas-Van2"),
+    ]
 
-    print(f"Frota gerada: {len(veiculos)} veículos criados.")
+    base_cost_ev = 0.04
+    base_cost_gas = 0.12
+
+    for motor, pax, max_range, name in fleet_specs:
+        loc = rng.choice(all_nodes)
+        cost = base_cost_ev if motor == Motor.ELECTRIC else base_cost_gas
+
+        v = _create_custom_vehicle(name, motor, loc, pax, float(max_range), cost, rng)
+        veiculos.append(v)
+
+    print(f"Frota personalizada gerada ({len(veiculos)} veículos). Seed: {seed}")
     return veiculos
 
 

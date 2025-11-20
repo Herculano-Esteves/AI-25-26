@@ -46,22 +46,26 @@ class Simulator:
         self.setup_new_map()
 
     def setup_new_map(self):
-        print("A criar novo mapa...")
+        print("A iniciar/reiniciar simulação...")
         self.map = generate_map()
 
         self.hotspot_manager = HotspotManager(self.map)
         self.traffic_manager = TrafficManager()
 
-        # Inicializar o Gerador de Pedidos (Seed fixa para determinismo)
-        self.request_generator = RequestGenerator(self.map, seed=12345)
+        # Inicializar o Gerador de Pedidos
+        self.request_generator = RequestGenerator(self.map, self.hotspot_manager, seed=12345)
 
         all_nodes = list(self.map.nos)
 
-        self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
+        # FROTA DETERMINÍSTICA
+        # Usamos sempre a mesma seed (42) para que os carros comecem nos mesmos sítios
+        self.vehicles = create_vehicle_fleet(
+            all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES, seed=42
+        )
 
         self.current_time = 8.0 * 60.0  # Começa às 08:00
 
-        # Começamos sem pedidos. O gerador vai criar os primeiros logo no primeiro tick.
+        # Reset das listas
         self.requests = []
         self.requests_to_pickup = []
         self.requests_to_dropoff = []

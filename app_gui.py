@@ -84,8 +84,9 @@ class MapApplication:
         btn_frame = ttk.Frame(control_frame)
         btn_frame.pack(side=tk.LEFT, padx=10, pady=5)
 
+        # BOTÃO ALTERADO AQUI
         self.btn_generate_map = ttk.Button(
-            btn_frame, text="Gerar Novo Mapa", command=self.setup_new_map
+            btn_frame, text="Reiniciar Simulação", command=self.setup_new_map
         )
         self.btn_generate_map.pack(side=tk.LEFT, padx=2)
 
@@ -103,7 +104,7 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=2)
 
-        # INFO PANEL (RIGHT SIDE)
+        # --- INFO PANEL (RIGHT SIDE) ---
         info_panel = ttk.Frame(control_frame)
         info_panel.pack(side=tk.RIGHT, padx=15, pady=2)
 
@@ -652,9 +653,11 @@ class MapApplication:
             self.simulator.get_current_time_of_day()
         )
 
+        # Separar em 2 labels para evitar "tremeliques"
         self.date_label.config(text=f"Ano {current_year} - Dia {current_day}")
         self.time_label.config(text=f"{current_hour:02d}:{current_minute:02d}")
 
+        # --- ATUALIZAR METEOROLOGIA ---
         if hasattr(self.simulator, "traffic_manager"):
             cond = self.simulator.traffic_manager.current_weather_condition
 
@@ -684,6 +687,7 @@ class MapApplication:
         self._draw_hotspots()
         self._draw_station_overlays()
 
+        # Redesenhar arestas com trânsito se o zoom for suficiente
         if self.zoom > self.ZOOM_THRESHOLD_TRAFFIC:
             self.canvas.delete("aresta")
 

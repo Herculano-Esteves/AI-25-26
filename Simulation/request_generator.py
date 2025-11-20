@@ -3,24 +3,31 @@ import math
 import numpy as np
 from typing import List, Optional, TYPE_CHECKING
 from models.request import Request
-from search import find_a_star_route
+from search import find_a_star_route, _heuristic_distance
 
 if TYPE_CHECKING:
     from graph import CityGraph
     from models.node import Node
+    from Simulation.hotspots import HotspotManager
 
 
 class RequestGenerator:
-    def __init__(self, city_map: "CityGraph", seed: int = 42):
+    def __init__(
+        self,
+        city_map: "CityGraph",
+        hotspot_manager: "HotspotManager",
+        seed: int = 42,
+    ):
         self.city_map = city_map
+        self.hotspot_manager = hotspot_manager
 
         # Deterministic number generator
         self.rng = random.Random(seed)
         self.next_request_time: float = -1.0
 
         # Demand of requests
-        self.base_demand = 0.05
-        self.peak_multiplier = 0.2
+        self.base_demand = 0.1
+        self.peak_multiplier = 0.4
 
         # Prices per Km
         self.BASE_FARE = 2.50
@@ -75,19 +82,15 @@ class RequestGenerator:
 
         if 7.5 <= hour < 9.5:
             total_intensity = 0.7
-
         # Almoço (12h - 14h)
         elif 12 <= hour < 14:
             total_intensity = 0.3
-
         # Tarde (17h - 19h30) - Pico Máximo
         elif 17 <= hour < 19.5:
             total_intensity = 0.9
-
         # Pré-noite (19h30 - 21h)
         elif 19.5 <= hour < 21:
             total_intensity = 0.2
-
         # Madrugada / Noite
         elif hour < 6.5 or hour > 22:
             total_intensity = 0.1
@@ -96,21 +99,72 @@ class RequestGenerator:
 
         return final_rate
 
+    def _get_hotspot_node(self) -> Optional["Node"]:
+        """
+        Seleciona deterministicamente um nó de um hotspot ativo.
+        """
+        active_hotspots = [h for h in self.hotspot_manager.hotspots if h.is_active]
+
+        if not active_hotspots:
+            # Se não houver hotspots ativos (ex: meio da noite), fallback para aleatório
+            all_nodes = list(self.city_map.nos)
+            return self.rng.choice(all_nodes) if all_nodes else None
+
+        # Escolha ponderada do hotspot (ex: Centro pesa mais que Escola)
+        weights = [h.weight for h in active_hotspots]
+        chosen_hotspot = self.rng.choices(active_hotspots, weights=weights, k=1)[0]
+
+        # Escolha uniforme de um nó dentro desse hotspot
+        if chosen_hotspot.node_cache:
+            return self.rng.choice(chosen_hotspot.node_cache)
+
+        return None
+
     def _create_deterministic_request(self, creation_time: float) -> Optional[Request]:
         """
         Gera um pedido completo com PATH REAL calculado.
-        Retorna None se não encontrar caminho.
+        Usa lógica de Hotspots para definir origem/destino.
         """
         all_nodes = list(self.city_map.nos)
         if not all_nodes:
             return None
 
-        # Node choice
-        start_node = self.rng.choice(all_nodes)
-        end_node = self.rng.choice(all_nodes)
+        # Hotspot logic
+        r = self.rng.random()
+        start_node = None
+        end_node = None
 
-        while start_node == end_node:
+        # 1. Origem Hotspot -> Destino Random (40%)
+        if r < 0.4:
+            start_node = self._get_hotspot_node()
             end_node = self.rng.choice(all_nodes)
+
+        # 2. Origem Random -> Destino Hotspot (30%)
+        elif r < 0.7:
+            start_node = self.rng.choice(all_nodes)
+            end_node = self._get_hotspot_node()
+
+        # 3. Hotspot -> Hotspot (20%)
+        elif r < 0.9:
+            start_node = self._get_hotspot_node()
+            end_node = self._get_hotspot_node()
+
+        # 4. Random -> Random (10%)
+        else:
+            start_node = self.rng.choice(all_nodes)
+            end_node = self.rng.choice(all_nodes)
+
+        # Safety fallback
+        if start_node is None:
+            start_node = self.rng.choice(all_nodes)
+        if end_node is None:
+            end_node = self.rng.choice(all_nodes)
+
+        # Evitar origem == destino
+        tries = 0
+        while start_node == end_node and tries < 10:
+            end_node = self.rng.choice(all_nodes)
+            tries += 1
 
         path_info = find_a_star_route(self.city_map, start_node, end_node)
 
@@ -138,7 +192,6 @@ class RequestGenerator:
             price=price,
             priority=priority,
             environmental_preference=eco_pref,
-            # Preencher os dados reais
             path=real_path,
             path_distance=real_dist,
             path_time=real_time,
