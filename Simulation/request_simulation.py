@@ -149,7 +149,7 @@ def calculate_detailed_cost(
     cost += dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
 
     # Custo de Oportunidade Inteligente
-    # Só penaliza EV por não levar "Eco" se tiver bateria confortável (> 40% do critico)
+    # Só penaliza EV por não levar "Eco" se tiver bateria confortável
     # Se estiver a morrer, aceita qualquer coisa sem penalidade de oportunidade.
     if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
         if has_eco_in_backlog:
@@ -485,30 +485,3 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
         if request in simulator.requests_to_pickup:
             simulator.requests_to_pickup.remove(request)
         simulator.requests.append(request)
-
-
-def generate_new_requests_if_needed(simulator: "Simulator"):
-    from mapGen import generate_random_request
-
-    total = (
-        len(simulator.requests)
-        + len(simulator.requests_to_pickup)
-        + len(simulator.requests_to_dropoff)
-    )
-    target = max(5, int(len(simulator.vehicles) * 0.8))
-
-    if total < simulator.NUM_INITIAL_REQUESTS or len(simulator.requests) < target:
-        num = simulator.NUM_REQUESTS_TO_GENERATE
-        for _ in range(num):
-            hotspot_node = None
-            if simulator.hotspot_manager and random.random() < 0.7:  # 70% chance
-                hotspot_node = simulator.hotspot_manager.get_random_node_from_active_hotspots()
-
-            simulator.requests.append(
-                generate_random_request(
-                    simulator.map,
-                    list(simulator.map.nos),
-                    simulator.current_time,
-                    force_start_node=hotspot_node,
-                )
-            )

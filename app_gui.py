@@ -80,9 +80,9 @@ class MapApplication:
         control_frame = ttk.LabelFrame(self.root, text="Controlos de Simulação")
         control_frame.pack(side=tk.TOP, fill=tk.X, pady=5, padx=5)
 
-        # Buttons
+        # Buttons Left
         btn_frame = ttk.Frame(control_frame)
-        btn_frame.pack(side=tk.LEFT, padx=10)
+        btn_frame.pack(side=tk.LEFT, padx=10, pady=5)
 
         self.btn_generate_map = ttk.Button(
             btn_frame, text="Gerar Novo Mapa", command=self.setup_new_map
@@ -103,16 +103,29 @@ class MapApplication:
         )
         self.btn_stop_sim.pack(side=tk.LEFT, padx=2)
 
-        # FPS Label
-        self.fps_label = ttk.Label(control_frame, text="FPS: 0", font=("Consolas", 10))
-        self.fps_label.pack(side=tk.RIGHT, padx=15)
+        # INFO PANEL (RIGHT SIDE)
+        info_panel = ttk.Frame(control_frame)
+        info_panel.pack(side=tk.RIGHT, padx=15, pady=2)
 
-        # Clock
-        ttk.Style().configure("Clock.TLabel", font=("Arial", 16, "bold"))
-        self.clock_label = ttk.Label(
-            control_frame, text="Ano 0 - Dia 0 - 00:00", style="Clock.TLabel"
+        # 1. Date (Small, Top)
+        self.date_label = ttk.Label(
+            info_panel, text="Ano 0 - Dia 0", font=("Arial", 9), foreground="#666666"
         )
-        self.clock_label.pack(side=tk.RIGHT, padx=15)
+        self.date_label.pack(side=tk.TOP, anchor="e")
+
+        # 2. Time (Big, Middle)
+        self.time_label = ttk.Label(
+            info_panel, text="08:00", font=("Arial", 22, "bold"), foreground="#000000"
+        )
+        self.time_label.pack(side=tk.TOP, anchor="e")
+
+        # 3. Weather (Medium, Bottom)
+        self.weather_label = ttk.Label(info_panel, text="--", font=("Arial", 11))
+        self.weather_label.pack(side=tk.TOP, anchor="e")
+
+        # FPS Label (Left of the clock)
+        self.fps_label = ttk.Label(control_frame, text="FPS: 0", font=("Consolas", 9))
+        self.fps_label.pack(side=tk.RIGHT, padx=20)
 
         # MAIN SPLIT VIEW
         self.main_paned_window = ttk.PanedWindow(self.root, orient=tk.HORIZONTAL)
@@ -639,12 +652,25 @@ class MapApplication:
             self.simulator.get_current_time_of_day()
         )
 
-        # Format the string (e.g., "Dia 0 - 08:05")
-        time_str = (
-            f"Ano {current_year} - Dia {current_day} - {current_hour:02d}:{current_minute:02d}"
-        )
+        self.date_label.config(text=f"Ano {current_year} - Dia {current_day}")
+        self.time_label.config(text=f"{current_hour:02d}:{current_minute:02d}")
 
-        self.clock_label.config(text=time_str)
+        if hasattr(self.simulator, "traffic_manager"):
+            cond = self.simulator.traffic_manager.current_weather_condition
+
+            color = "#000000"  # Preto como base no novo painel claro
+            icon = "☀"
+            if cond == "Nublado":
+                icon = "☁"
+                color = "#555555"
+            elif cond == "Chuva":
+                icon = "🌧"
+                color = "#0066cc"
+            elif cond == "Tempestade":
+                icon = "⛈"
+                color = "#cc0000"
+
+            self.weather_label.config(text=f"{icon} {cond}", foreground=color)
 
     def update_dynamic_visuals(self):
         for v in self.simulator.vehicles:
@@ -658,19 +684,15 @@ class MapApplication:
         self._draw_hotspots()
         self._draw_station_overlays()
 
-        # Redesenhar arestas com trânsito se o zoom for suficiente
         if self.zoom > self.ZOOM_THRESHOLD_TRAFFIC:
-            # Limpa as arestas estáticas
             self.canvas.delete("aresta")
 
             c_width = self.canvas.winfo_width()
             c_height = self.canvas.winfo_height()
             margin = 100
 
-            # Desenha as arestas (agora com cor de trânsito pois o zoom é alto)
             self._draw_edges(c_width, c_height, margin)
 
-            # Enviar para o fundo (Layering)
             self.canvas.tag_lower("aresta")
             self.canvas.tag_lower("aresta")
 
@@ -744,16 +766,15 @@ class MapApplication:
         margin = 100
 
         # Static / Background
-        self._draw_edges(c_width, c_height, margin)  # 1. Arestas
-        self._draw_nodes(c_width, c_height, margin)  # 2. Estações/Nós
+        self._draw_edges(c_width, c_height, margin)  # Arestas
+        self._draw_nodes(c_width, c_height, margin)  # Estações
 
-        # Static / Foreground (Hotspots e Overlays voltam a ficar em cima)
-        self._draw_hotspots()  # 3. Hotspots
-        self._draw_station_overlays()  # 4. Overlays das Estações
+        self._draw_hotspots()  # Hotspots
+        self._draw_station_overlays()  # Overlays das Estações
 
         # Dinamic / Foreground
-        self._draw_requests()  # 5. Pedidos
-        self._draw_vehicles()  # 6. Veículos (Topo)
+        self._draw_requests()  # Pedidos
+        self._draw_vehicles()  # Veículos
 
         # Debug
         self.canvas.create_text(
@@ -786,12 +807,10 @@ class MapApplication:
                     ):
                         continue
 
-                    # Cor base
                     color = self.EDGE_COLOR
                     width = 1
 
                     if show_traffic and self.simulator.traffic_manager:
-                        # Calcular o fator no ponto médio da aresta
                         mid_lon = (start_node.position[0] + end_node.position[0]) / 2
                         mid_lat = (start_node.position[1] + end_node.position[1]) / 2
 
@@ -800,12 +819,11 @@ class MapApplication:
                         )
 
                         if factor > 1.5:
-                            color = "#ff4444"  # Vermelho (Trânsito Intenso)
+                            color = "#ff4444"
                             width = 2
                         elif factor > 1.1:
-                            color = "#ffbb33"  # Laranja/Amarelo (Trânsito Médio)
+                            color = "#ffbb33"
                             width = 2
-                        # Mantemos cinzento (fluido)
 
                     self.canvas.create_line(
                         x1, y1, x2, y2, fill=color, width=width, tags=("aresta",)

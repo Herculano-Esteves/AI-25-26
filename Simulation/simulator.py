@@ -1,7 +1,6 @@
 from mapGen import (
     generate_map,
     create_vehicle_fleet,
-    generate_requests,
 )
 from models.vehicle import Vehicle, VehicleCondition
 from models.request import Request
@@ -12,11 +11,11 @@ import random
 from Simulation.vehicle_simulation import manage_vehicle
 from Simulation.request_simulation import (
     assign_pending_requests,
-    generate_new_requests_if_needed,
     check_timeouts,
 )
 from Simulation.hotspots import HotspotManager
 from models.traffic import TrafficManager
+from Simulation.request_generator import RequestGenerator
 
 
 class Simulator:
@@ -24,17 +23,15 @@ class Simulator:
     MAP_WIDTH = 20
     MAP_HEIGHT = 20
     # Time constants
-    SIM_TIME_PER_TICK = 1  # Base time in minutes per frame
+    SIM_TIME_PER_TICK = 1
     MINUTES_PER_HOUR = 60
     HOURS_PER_DAY = 24
     MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY
     MINUTES_PER_YEAR = MINUTES_PER_DAY * 365
     LOW_AUTONOMY_THRESHOLD = 50.0
-    NUM_EV_VEHICLES = 4
-    NUM_GAS_VEHICLES = 4
-    NUM_INITIAL_REQUESTS = 8
-    NUM_REQUESTS_TO_GENERATE = 3
-    STATION_FAILURE_PROB_PER_TICK = 0.0001  # Prob of a station to fail per tick
+    NUM_EV_VEHICLES = 3
+    NUM_GAS_VEHICLES = 3
+    STATION_FAILURE_PROB_PER_TICK = 0.0001
     STATION_DOWNTIME_MINUTES = 120.0
 
     def __init__(self):
@@ -55,45 +52,40 @@ class Simulator:
         self.hotspot_manager = HotspotManager(self.map)
         self.traffic_manager = TrafficManager()
 
+        # Inicializar o Gerador de Pedidos (Seed fixa para determinismo)
+        self.request_generator = RequestGenerator(self.map, seed=12345)
+
         all_nodes = list(self.map.nos)
 
         self.vehicles = create_vehicle_fleet(all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES)
 
-        self.current_time = 8.0 * 60.0  # 08:00
+        self.current_time = 8.0 * 60.0  # Começa às 08:00
 
-        self.requests = generate_requests(
-            self.map, all_nodes, self.NUM_INITIAL_REQUESTS, self.current_time
-        )
-
+        # Começamos sem pedidos. O gerador vai criar os primeiros logo no primeiro tick.
+        self.requests = []
         self.requests_to_pickup = []
         self.requests_to_dropoff = []
 
         self.stats = SimulationStats()
 
     def simulation_step(self, time_multiplier: float = 1.0):
-        """
-        Executes one step of simulation.
-        :param time_multiplier: Multiplier for the time passage (1.0 = normal, 2.0 = double speed)
-        """
-        # Apply the multiplier to the base tick time
         time_to_advance = self.SIM_TIME_PER_TICK * time_multiplier
 
         self.current_time += time_to_advance
         self.stats.reset_step_metrics()
 
-        # Update Hotspots based on the time
         current_hour = self.get_current_hour()
         self.hotspot_manager.update(current_hour)
+
+        # O gerador verifica se passou tempo suficiente para um novo cliente ligar
+        self.request_generator.update(self.current_time, self.requests)
 
         for v in self.vehicles:
             manage_vehicle(self, v, time_to_advance)
 
         self._update_station_failures(time_to_advance)
 
-        generate_new_requests_if_needed(self)
-
         check_timeouts(self)
-
         assign_pending_requests(self)
 
         self._calculate_step_stats(time_to_advance)
@@ -122,8 +114,10 @@ class Simulator:
         self.stats.total_kms_driven_empty += self.stats.step_kms_driven_empty
 
         self.stats.total_co2_emitted += self.stats.step_co2_emitted
+
         self.stats.total_station_time_ev += self.stats.step_station_time_ev
         self.stats.total_station_time_gas += self.stats.step_station_time_gas
+
         self.stats.total_requests_cancelled_timeout += self.stats.step_requests_cancelled_timeout
 
     def _update_station_failures(self, time_to_advance: float):
@@ -145,7 +139,6 @@ class Simulator:
                     print(f"[Station Repair] Estação em {node.position} está operacional.")
 
     def get_current_time_of_day(self) -> tuple[int, int, int, int]:
-        # return day, hour, minute, year
         current_year = int(self.current_time // self.MINUTES_PER_YEAR)
         minutes_into_year = self.current_time % self.MINUTES_PER_YEAR
         current_day = int(minutes_into_year // self.MINUTES_PER_DAY)

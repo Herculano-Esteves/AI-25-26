@@ -1,4 +1,4 @@
-from noise import pnoise3
+from noise import pnoise3, pnoise1
 from typing import Tuple, Dict
 import math
 
@@ -9,6 +9,10 @@ class TrafficManager:
         self.noise_scale = 3.5
         self.time_scale = 0.05
         self.center_coords = (-8.42, 41.55)
+
+        self.weather_time_scale = 0.002
+        self.current_weather_condition = "Sol"
+        self.current_weather_penalty = 1.0
 
         # Cache: {(lat_idx, lon_idx): traffic_factor}
         self._cache: Dict[Tuple[int, int], float] = {}
@@ -22,6 +26,7 @@ class TrafficManager:
 
         if current_time_block != self._last_time_block:
             self._cache.clear()
+            self._update_weather(time_minutes)
             self._last_time_block = current_time_block
 
         lon, lat = position
@@ -40,7 +45,7 @@ class TrafficManager:
         factor = self._calculate_heavy_math(grid_lon, grid_lat, current_time_block)
 
         # Cache save
-        self._cache[cache_key] = factor
+        self._cache[cache_key] = factor * self.current_weather_penalty
 
         return factor
 
@@ -91,7 +96,7 @@ class TrafficManager:
         elif 12 <= hour < 14:
             return 0.3
 
-        # Tarde (17h - 19h30) - Pico Máximo
+        # Tarde (17h - 19h30)
         elif 17 <= hour < 19.5:
             return 0.9
 
@@ -105,3 +110,28 @@ class TrafficManager:
 
         # Base do dia
         return 0.1
+
+    def _update_weather(self, time_minutes: float):
+        """
+        Determina o estado do tempo com base num ruído 1D lento.
+        Determinístico: A mesma hora terá sempre o mesmo tempo na mesma seed.
+        """
+        # pnoise1 retorna valor entre -1 e 1 (aprox)
+        # Usamos uma seed diferente (self.seed + 1000) para não ser igual ao padrão do trânsito
+        noise = pnoise1(time_minutes * self.weather_time_scale, base=self.seed + 1000)
+
+        # Normalizar para [0, 1]
+        val = (noise + 1) / 2.0
+
+        if val < 0.45:
+            self.current_weather_condition = "Sol"
+            self.current_weather_penalty = 1.0
+        elif val < 0.65:
+            self.current_weather_condition = "Nublado"
+            self.current_weather_penalty = 1.2
+        elif val < 0.85:
+            self.current_weather_condition = "Chuva"
+            self.current_weather_penalty = 1.30  # +30% Trânsito
+        else:
+            self.current_weather_condition = "Tempestade"
+            self.current_weather_penalty = 1.60  # +60% Trânsito (Caos)
