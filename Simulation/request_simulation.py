@@ -92,6 +92,107 @@ class SAState:
         return SAState(self.assignment.copy(), self.backlog.copy())
 
 
+def _calculate_base_time_cost(time_to_pickup: float) -> float:
+    """Custo base associado ao tempo de viagem até ao cliente."""
+    return time_to_pickup * PlanningConfig.WEIGHT_TIME
+
+
+def _calculate_wait_time_bonus(request: Request, current_time: float) -> float:
+    """Reduz o custo (bónus) para pedidos que estão à espera há muito tempo ou têm alta prioridade."""
+    wait_time = current_time - request.creation_time
+    age_bonus = wait_time * PlanningConfig.WEIGHT_AGE
+    priority_bonus = (request.priority - 1) * PlanningConfig.WEIGHT_PRIORITY
+    return -(age_bonus + priority_bonus)
+
+
+def _calculate_environmental_penalty(vehicle: Vehicle, request: Request) -> float:
+    """Penaliza veículos a combustão a fazerem pedidos ecológicos."""
+    if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
+        return request.path_distance * PlanningConfig.PENALTY_ENV_MISMATCH_PER_KM
+    return 0.0
+
+
+def _calculate_capacity_penalty(vehicle: Vehicle, request: Request) -> float:
+    """Penaliza o uso de veículos grandes para poucos passageiros."""
+    if vehicle.passenger_capacity > request.passenger_capacity:
+        excess_capacity = vehicle.passenger_capacity - request.passenger_capacity
+        return excess_capacity * PlanningConfig.PENALTY_UNUSED_SEAT
+    return 0.0
+
+
+def _calculate_battery_risk(remaining_km_after: float) -> float:
+    """Calcula o risco associado a ficar com pouca bateria/combustível."""
+    if remaining_km_after < 0:
+        return float("inf")
+
+    if remaining_km_after < PlanningConfig.BATTERY_CRITICAL_LEVEL:
+        deficit = PlanningConfig.BATTERY_CRITICAL_LEVEL - remaining_km_after
+        return (
+            deficit**PlanningConfig.BATTERY_RISK_EXPONENT
+        ) * PlanningConfig.WEIGHT_BATTERY_RISK
+    return 0.0
+
+
+def _calculate_future_logistics_cost(
+    vehicle: Vehicle,
+    request: Request,
+    remaining_km_after: float,
+    simulator: "Simulator",
+) -> float:
+    """
+    Calcula custos associados ao estado do veículo APÓS a entrega.
+    Inclui:
+    1. Viabilidade de chegar a um posto de abastecimento.
+    2. Distância a um posto (custo de reabastecimento futuro).
+    3. Distância a um Hotspot (custo de isolamento).
+    """
+    final_pos = request.end_node
+
+    # 1. & 2. Reabastecimento
+    dist_station = StrategyManager.get_dist_to_nearest_station(
+        final_pos, vehicle.motor, simulator
+    )
+    if dist_station > remaining_km_after:
+        return float("inf")  # Stranded
+
+    refuel_cost = dist_station * PlanningConfig.WEIGHT_FUTURE_REFUEL
+
+    # 3. Isolamento (Hotspots)
+    dist_hotspot = StrategyManager.get_dist_to_nearest_hotspot(final_pos, simulator)
+    isolation_cost = dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
+
+    return refuel_cost + isolation_cost
+
+
+def _calculate_opportunity_cost(
+    vehicle: Vehicle, request: Request, has_eco_in_backlog: bool
+) -> float:
+    """
+    Penaliza EVs por fazerem pedidos não-ecológicos quando há pedidos ecológicos à espera.
+    A penalização é menor se o EV estiver com pouca bateria (precisa de trabalhar onde der).
+    """
+    if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
+        if has_eco_in_backlog:
+            safe_range = vehicle.max_km * 0.6
+            battery_factor = min(1.0, vehicle.remaining_km / safe_range)
+            return PlanningConfig.WEIGHT_LOST_OPPORTUNITY * battery_factor
+    return 0.0
+
+
+def _calculate_profit_adjustment(
+    vehicle: Vehicle, request: Request, dist_to_pickup: float
+) -> float:
+    """
+    Ajusta o custo com base no lucro projetado.
+    Maior lucro = Menor custo (valor negativo retornado).
+    """
+    operational_cost = (dist_to_pickup + request.path_distance) * vehicle.price_per_km
+    projected_profit = request.price - operational_cost
+
+    # Subtraímos o lucro (multiplicado pelo peso) ao custo total
+    return -(projected_profit * PlanningConfig.WEIGHT_PROFIT)
+
+
 def calculate_detailed_cost(
     vehicle: Vehicle,
     request: Request,
@@ -100,83 +201,59 @@ def calculate_detailed_cost(
     has_eco_in_backlog: bool,
 ) -> float:
     """
-    Calcula o custo total de uma atribuição.
+    Calcula o custo total de uma atribuição, agregando vários componentes de custo.
     """
     _, time_to_pickup, dist_to_pickup = path_info
 
-    # Custo Base
-    cost = time_to_pickup * PlanningConfig.WEIGHT_TIME
+    # 1. Custos Base e Bónus
+    cost = _calculate_base_time_cost(time_to_pickup)
+    cost += _calculate_wait_time_bonus(request, simulator.current_time)
 
-    # Bónus de Atendimento
-    wait_time = simulator.current_time - request.creation_time
-    cost -= wait_time * PlanningConfig.WEIGHT_AGE
-    cost -= (request.priority - 1) * PlanningConfig.WEIGHT_PRIORITY
+    # 2. Penalizações de Compatibilidade
+    cost += _calculate_environmental_penalty(vehicle, request)
+    cost += _calculate_capacity_penalty(vehicle, request)
 
-    # Penalizações proporcionalmente à distância da viagem.
-    # Viagens longas num motor a combustão para um cliente Eco custam mais.
-    if request.environmental_preference and vehicle.motor == Motor.COMBUSTION:
-        cost += request.path_distance * PlanningConfig.PENALTY_ENV_MISMATCH_PER_KM
-
-    if vehicle.passenger_capacity > request.passenger_capacity:
-        cost += (
-            vehicle.passenger_capacity - request.passenger_capacity
-        ) * PlanningConfig.PENALTY_UNUSED_SEAT
-
-    # Estado Futuro e Risco
+    # 3. Verificação de Autonomia e Risco
     total_trip_dist = dist_to_pickup + request.path_distance
     remaining_km_after = vehicle.remaining_km - total_trip_dist
 
-    if remaining_km_after < 0:
+    battery_risk = _calculate_battery_risk(remaining_km_after)
+    if battery_risk == float("inf"):
         return float("inf")
+    cost += battery_risk
 
-    # Risco de Bateria (Exponencial)
-    risk_factor = 0.0
-    if remaining_km_after < PlanningConfig.BATTERY_CRITICAL_LEVEL:
-        deficit = PlanningConfig.BATTERY_CRITICAL_LEVEL - remaining_km_after
-        risk_factor = (
-            deficit**PlanningConfig.BATTERY_RISK_EXPONENT
-        ) * PlanningConfig.WEIGHT_BATTERY_RISK
-    cost += risk_factor
+    # 4. Logística Futura (Pós-Entrega)
+    future_cost = _calculate_future_logistics_cost(
+        vehicle, request, remaining_km_after, simulator
+    )
+    if future_cost == float("inf"):
+        return float("inf")
+    cost += future_cost
 
-    # Planeamento Pós-Entrega
-    final_pos = request.end_node
+    # 5. Custo de Oportunidade
+    cost += _calculate_opportunity_cost(vehicle, request, has_eco_in_backlog)
 
-    # Estimar distância para o posto mais próximo a partir do destino
-    dist_station = StrategyManager.get_dist_to_nearest_station(final_pos, vehicle.motor, simulator)
-    if dist_station > remaining_km_after:
-        return float("inf")  # Stranded
-    cost += dist_station * PlanningConfig.WEIGHT_FUTURE_REFUEL
-
-    # Isolamento (Hotspots)
-    dist_hotspot = StrategyManager.get_dist_to_nearest_hotspot(final_pos, simulator)
-    cost += dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
-
-    # Custo de Oportunidade Inteligente
-    # Só penaliza EV por não levar "Eco" se tiver bateria confortável
-    # Se estiver a morrer, aceita qualquer coisa sem penalidade de oportunidade.
-    if vehicle.motor == Motor.ELECTRIC and not request.environmental_preference:
-        if has_eco_in_backlog:
-            # Penaçização em relação à percentagem de bateria (Sobrevivência vs Oportunidade)
-            safe_range = vehicle.max_km * 0.6
-            battery_factor = min(1.0, vehicle.remaining_km / safe_range)
-
-            cost += PlanningConfig.WEIGHT_LOST_OPPORTUNITY * battery_factor
-
-    # Operational Cost = (Distance to Pickup + Trip Distance) * Vehicle Cost per Km
-    operational_cost = (dist_to_pickup + request.path_distance) * vehicle.price_per_km
-    
-    # Profit = Revenue - Operational Cost
-    projected_profit = request.price - operational_cost
-    
-    # Invert Profit for Cost Function (Higher Profit = Lower Cost)
-    # We subtract profit * weight.
-    cost -= projected_profit * PlanningConfig.WEIGHT_PROFIT
+    # 6. Otimização de Lucro
+    cost += _calculate_profit_adjustment(vehicle, request, dist_to_pickup)
 
     return cost
 
 
+def _calculate_backlog_penalty(request: Request, current_time: float) -> float:
+    """Calcula a penalização por deixar um pedido no backlog."""
+    age = max(0, current_time - request.creation_time)
+
+    prio_cost = (request.priority**2) * PlanningConfig.WEIGHT_PRIORITY
+    age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0  # Age pesa no backlog
+
+    return PlanningConfig.BACKLOG_BASE_PENALTY + prio_cost + age_cost
+
+
 def calculate_total_system_energy(
-    state: SAState, cost_matrix: np.ndarray, requests: List[Request], current_time: float
+    state: SAState,
+    cost_matrix: np.ndarray,
+    requests: List[Request],
+    current_time: float,
 ) -> float:
     total_energy = 0.0
 
@@ -191,12 +268,7 @@ def calculate_total_system_energy(
     # Backlog (Penalização)
     for r_idx in state.backlog:
         req = requests[r_idx]
-        age = max(0, current_time - req.creation_time)
-
-        prio_cost = (req.priority**2) * PlanningConfig.WEIGHT_PRIORITY
-        age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0  # Age pesa no backlog
-
-        total_energy += PlanningConfig.BACKLOG_BASE_PENALTY + prio_cost + age_cost
+        total_energy += _calculate_backlog_penalty(req, current_time)
 
     return total_energy
 
