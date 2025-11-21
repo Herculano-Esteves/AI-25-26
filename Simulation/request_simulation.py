@@ -1,7 +1,7 @@
 from typing import List, TYPE_CHECKING, Tuple, Set, Optional
 from models.request import Request
 from models.vehicle import Vehicle, VehicleCondition, Motor
-from search import find_a_star_route, _heuristic_distance
+from search_algorithms import find_route, _heuristic_distance
 from models.node import Node
 import random
 import math
@@ -14,6 +14,20 @@ if TYPE_CHECKING:
 BASE_TIMEOUT_MINUTES = 30.0
 TIMEOUT_REDUCTION_PER_PRIORITY = 5.0
 CANCELLATION_PENALTY_EUR = 5.0  # Fee for client lost
+
+# Configuração do Algoritmo de Procura
+# Opções: 'astar', 'bfs', 'greedy'
+_selected_algorithm = 'astar'
+
+
+def get_selected_algorithm() -> str:
+    return _selected_algorithm
+
+
+def set_selected_algorithm(algo: str):
+    global _selected_algorithm
+    _selected_algorithm = algo
+    print(f"[Config] Algoritmo de rota alterado para: {algo}")
 
 
 class PlanningConfig:
@@ -501,7 +515,8 @@ def assign_pending_requests(simulator: "Simulator"):
                 continue
 
             # Pathfinding (A*)
-            path_info = find_a_star_route(
+            path_info = find_route(
+                get_selected_algorithm(),
                 simulator.map,
                 v.position_node,
                 req.start_node,
@@ -551,7 +566,8 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
     dist_str = f"{v.remaining_km:.0f}km"
     print(f"[SA] {v.id} -> {request.id} (Prio {request.priority}). Bat: {dist_str}")
 
-    path_info = find_a_star_route(
+    path_info = find_route(
+        get_selected_algorithm(),
         simulator.map,
         v.position_node,
         request.start_node,

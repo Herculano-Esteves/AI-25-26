@@ -4,7 +4,7 @@ from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
 from models.request import Request
-from search import find_a_star_route, _heuristic_distance
+from search_algorithms import find_route, _heuristic_distance
 
 import osmnx as ox
 import math

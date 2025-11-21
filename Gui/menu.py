@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from Simulation.request_simulation import PlanningConfig
+from Simulation.request_simulation import PlanningConfig, set_selected_algorithm
 
 class MenuView:
     def __init__(self, parent, simulator, speed_var):
@@ -156,6 +156,26 @@ class MenuView:
             variable=self.speed_var, resolution=0.1, label="Multiplicador (x)"
         )
         self.speed_scale.pack(fill=tk.X, padx=5, pady=5)
+        
+        # Algorithm Selection
+        algo_frame = ttk.LabelFrame(inner_frame, text="Algoritmo de Rota")
+        algo_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        algo_options = ["A* (A-Star)", "BFS (Breadth-First)", "Greedy (Best-First)"]
+        self.algo_combo = ttk.Combobox(algo_frame, values=algo_options, state="readonly")
+        self.algo_combo.set("A* (A-Star)")
+        self.algo_combo.pack(fill=tk.X, padx=5, pady=5)
+        
+        def on_algo_change(event):
+            selection = self.algo_combo.get()
+            key = 'astar'
+            if "BFS" in selection:
+                key = 'bfs'
+            elif "Greedy" in selection:
+                key = 'greedy'
+            set_selected_algorithm(key)
+            
+        self.algo_combo.bind("<<ComboboxSelected>>", on_algo_change)
 
         ttk.Label(inner_frame, text="Pesos do Planeamento (Ao Vivo)", font=("Arial", 12, "bold")).pack(pady=(15, 5), anchor=tk.W, padx=5)
 

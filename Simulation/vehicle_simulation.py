@@ -1,4 +1,4 @@
-from search import find_a_star_route, _heuristic_distance
+from search_algorithms import find_route, _heuristic_distance
 from models.vehicle import Vehicle, VehicleCondition, Motor
 from models.node import Node
 from typing import TYPE_CHECKING
@@ -274,7 +274,7 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
     min_time = float("inf")
 
     for station in closest_candidates:
-        path_info = find_a_star_route(simulator.map, v.position_node, station)
+        path_info = find_route('astar', simulator.map, v.position_node, station)
 
         if path_info:
             path, time, distance = path_info

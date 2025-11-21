@@ -3,7 +3,7 @@ import math
 import numpy as np
 from typing import List, Optional, TYPE_CHECKING
 from models.request import Request
-from search import find_a_star_route, _heuristic_distance
+from search_algorithms import find_route, _heuristic_distance
 
 if TYPE_CHECKING:
     from graph import CityGraph
@@ -166,7 +166,7 @@ class RequestGenerator:
             end_node = self.rng.choice(all_nodes)
             tries += 1
 
-        path_info = find_a_star_route(self.city_map, start_node, end_node)
+        path_info = find_route('astar', self.city_map, start_node, end_node)
 
         if not path_info:
             return None
