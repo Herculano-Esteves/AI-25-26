@@ -15,9 +15,16 @@ BASE_TIMEOUT_MINUTES = 30.0
 TIMEOUT_REDUCTION_PER_PRIORITY = 5.0
 CANCELLATION_PENALTY_EUR = 5.0  # Fee for client lost
 
-# Configuração do Algoritmo de Procura
+from Simulation.simulation_config import PlanningConfig
+from Simulation.assignment_algorithms import solve_assignment
+
+# Configuração do Algoritmo de Procura (Routing)
 # Opções: 'astar', 'bfs', 'greedy'
 _selected_algorithm = 'astar'
+
+# Configuração do Algoritmo de Atribuição (Assignment)
+# Opções: 'simulated annealing', 'greedy', 'hill climbing'
+_selected_assignment_algorithm = 'simulated annealing'
 
 
 def get_selected_algorithm() -> str:
@@ -30,39 +37,17 @@ def set_selected_algorithm(algo: str):
     print(f"[Config] Algoritmo de rota alterado para: {algo}")
 
 
-class PlanningConfig:
-    """
-    All the weights
-    """
+def get_selected_assignment_algorithm() -> str:
+    return _selected_assignment_algorithm
 
-    # Pesos Base
-    WEIGHT_TIME = 1.0  # Peso de 1 minuto de viagem
-    WEIGHT_PRIORITY = 30.0  # Quanto vale cada nível de prioridade
-    WEIGHT_AGE = 4.0  # Peso por minuto de espera
 
-    # Penalizações "Hard"
-    PENALTY_IMPOSSIBLE = float("inf")
+def set_selected_assignment_algorithm(algo: str):
+    global _selected_assignment_algorithm
+    _selected_assignment_algorithm = algo
+    print(f"[Config] Algoritmo de atribuição alterado para: {algo}")
 
-    # Penalização dinâmica por Km
-    PENALTY_ENV_MISMATCH_PER_KM = 15.0
 
-    PENALTY_UNUSED_SEAT = 5.0  # Por lugar vazio
 
-    # Penalizações
-    BATTERY_RISK_EXPONENT = 2.0  # Quão agressiva é a curva de risco (quadrática/exponencial)
-    BATTERY_CRITICAL_LEVEL = 30.0  # Abaixo disto, o risco dispara
-    WEIGHT_BATTERY_RISK = 20.0  # Multiplicador do fator de risco
-
-    WEIGHT_ISOLATION = 1  # Custo por km de distância de um Hotspot após entrega
-    WEIGHT_FUTURE_REFUEL = 1.5  # Custo por km até à estação mais próxima APÓS entrega
-
-    # Custo de Oportunidade
-    WEIGHT_LOST_OPPORTUNITY = 40.0  # EV a fazer pedido não-ecológico quando há ecológicos na fila
-
-    BACKLOG_BASE_PENALTY = 160.0  # Custo fixo por deixar alguém para trás
-
-    # Profit Optimization
-    WEIGHT_PROFIT = 10.0  # Multiplier for profit (negative cost)
 
 
 class StrategyManager:
@@ -97,13 +82,7 @@ class StrategyManager:
         return min(_heuristic_distance(node, s) for s in stations)
 
 
-class SAState:
-    def __init__(self, assignment: List[int], backlog: Set[int]):
-        self.assignment = assignment
-        self.backlog = backlog
 
-    def copy(self):
-        return SAState(self.assignment.copy(), self.backlog.copy())
 
 
 def _calculate_base_time_cost(time_to_pickup: float) -> float:
@@ -253,202 +232,7 @@ def calculate_detailed_cost(
     return cost
 
 
-def _calculate_backlog_penalty(request: Request, current_time: float) -> float:
-    """Calcula a penalização por deixar um pedido no backlog."""
-    age = max(0, current_time - request.creation_time)
 
-    prio_cost = (request.priority**2) * PlanningConfig.WEIGHT_PRIORITY
-    age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0  # Age pesa no backlog
-
-    return PlanningConfig.BACKLOG_BASE_PENALTY + prio_cost + age_cost
-
-
-def calculate_total_system_energy(
-    state: SAState,
-    cost_matrix: np.ndarray,
-    requests: List[Request],
-    current_time: float,
-) -> float:
-    total_energy = 0.0
-
-    # Atribuições
-    for v_idx, r_idx in enumerate(state.assignment):
-        if r_idx != -1:
-            c = cost_matrix[v_idx, r_idx]
-            if c == float("inf"):
-                return float("inf")
-            total_energy += c
-
-    # Backlog (Penalização)
-    for r_idx in state.backlog:
-        req = requests[r_idx]
-        total_energy += _calculate_backlog_penalty(req, current_time)
-
-    return total_energy
-
-
-def get_neighbor(
-    state: SAState, num_vehicles: int, cost_matrix: np.ndarray, requests: List[Request]
-) -> SAState:
-    """
-    Operadores com proteção de estabilidade.
-    """
-    for _ in range(3):  # Tentar 3x gerar válido
-        new_state = state.copy()
-        p = random.random()
-
-        busy = [i for i, r in enumerate(new_state.assignment) if r != -1]
-        free = [i for i, r in enumerate(new_state.assignment) if r == -1]
-
-        # OP 1: SWAP (25%)
-        if p < 0.25 and len(busy) >= 2:
-            v1, v2 = random.sample(busy, 2)
-            new_state.assignment[v1], new_state.assignment[v2] = (
-                new_state.assignment[v2],
-                new_state.assignment[v1],
-            )
-            return new_state
-
-        # OP 2: MOVE (25%)
-        elif p < 0.50 and busy and free:
-            v_src = random.choice(busy)
-            v_dst = random.choice(free)
-            r = new_state.assignment[v_src]
-            if cost_matrix[v_dst, r] != float("inf"):
-                new_state.assignment[v_dst] = r
-                new_state.assignment[v_src] = -1
-                return new_state
-
-        # OP 3: REPLACE (30%)
-        elif p < 0.80 and busy and new_state.backlog:
-            v = random.choice(busy)
-            r_new = random.choice(list(new_state.backlog))
-            r_old = new_state.assignment[v]
-            if cost_matrix[v, r_new] != float("inf"):
-                new_state.assignment[v] = r_new
-                new_state.backlog.remove(r_new)
-                new_state.backlog.add(r_old)
-                return new_state
-
-        # OP 4: ADD (15%)
-        elif free and new_state.backlog:
-            v = random.choice(free)
-            r = random.choice(list(new_state.backlog))
-            if cost_matrix[v, r] != float("inf"):
-                new_state.assignment[v] = r
-                new_state.backlog.remove(r)
-                return new_state
-
-        # OP 5: REMOVE (5%) - Protegido
-        elif busy:
-            # Só remove se backlog estiver controlado
-            if len(new_state.backlog) < num_vehicles * 3:
-                v = random.choice(busy)
-                r = new_state.assignment[v]
-                # Proteção VIP
-                if requests[r].priority < 4 or random.random() < 0.1:
-                    new_state.assignment[v] = -1
-                    new_state.backlog.add(r)
-                    return new_state
-
-    return state
-
-
-def simulated_annealing_solver(
-    simulator: "Simulator",
-    cost_matrix: np.ndarray,
-    requests: List[Request],
-    initial_temp: float = 200.0,
-):
-    num_vehicles = cost_matrix.shape[0]
-    num_requests = cost_matrix.shape[1]
-
-    # Inicialização Estocástia
-    # Preenchimento com ruído para evitar mínimos locais logo no início.
-    assign = [-1] * num_vehicles
-    backlog = set(range(num_requests))
-
-    # Lista de candidatos ordenados
-    sorted_req_indices = sorted(
-        range(num_requests), key=lambda i: requests[i].priority, reverse=True
-    )
-
-    for r_idx in sorted_req_indices:
-        # Tenta atribuir ao primeiro veículo livre e viável
-        candidates = []
-        for v_idx in range(num_vehicles):
-            if assign[v_idx] == -1 and cost_matrix[v_idx, r_idx] != float("inf"):
-                candidates.append(v_idx)
-
-        if candidates:
-            # Escolhe o melhor candidato com 80% chance, ou aleatório 20%
-            best_c = min(candidates, key=lambda v: cost_matrix[v, r_idx])
-            if random.random() < 0.8:
-                chosen_v = best_c
-            else:
-                chosen_v = random.choice(candidates)
-
-            assign[chosen_v] = r_idx
-            backlog.remove(r_idx)
-
-    current_state = SAState(assign, backlog)
-    current_energy = calculate_total_system_energy(
-        current_state, cost_matrix, requests, simulator.current_time
-    )
-
-    best_state = current_state.copy()
-    best_energy = current_energy
-
-    temp = initial_temp
-    alpha = 0.96  # Arrefecimento
-
-    stagnation_counter = 0
-
-    # Loop SA com Reheating
-    MAX_ITER = 1200
-    for i in range(MAX_ITER):
-        neighbor = get_neighbor(current_state, num_vehicles, cost_matrix, requests)
-        neighbor_energy = calculate_total_system_energy(
-            neighbor, cost_matrix, requests, simulator.current_time
-        )
-
-        if neighbor_energy == float("inf"):
-            continue
-
-        delta = neighbor_energy - current_energy
-
-        accept = False
-        if delta <= 0:
-            accept = True
-        else:
-            if temp > 0.01:
-                try:
-                    if random.random() < math.exp(-delta / temp):
-                        accept = True
-                except:
-                    pass
-
-        if accept:
-            current_state = neighbor
-            current_energy = neighbor_energy
-            if current_energy < best_energy:
-                best_state = current_state.copy()
-                best_energy = current_energy
-                stagnation_counter = 0
-            else:
-                stagnation_counter += 1
-        else:
-            stagnation_counter += 1
-
-        # Reheat se estagnado
-        if stagnation_counter > 200:
-            temp = min(temp * 1.8, initial_temp)
-            stagnation_counter = 0
-            current_state = best_state.copy()  # Reset para o melhor conhecido
-
-        temp = max(temp * alpha, 0.05)
-
-    return best_state.assignment
 
 
 def check_timeouts(simulator: "Simulator"):
@@ -539,7 +323,8 @@ def assign_pending_requests(simulator: "Simulator"):
     if max_prio >= 4 or len(pending_requests) > num_vehicles:
         initial_temp = 450.0
 
-    final_assignment = simulated_annealing_solver(
+    final_assignment = solve_assignment(
+        get_selected_assignment_algorithm(),
         simulator, cost_matrix, pending_requests, initial_temp
     )
 

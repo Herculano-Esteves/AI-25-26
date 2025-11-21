@@ -1,6 +1,7 @@
 import tkinter as tk
 from tkinter import ttk
-from Simulation.request_simulation import PlanningConfig, set_selected_algorithm
+from Simulation.request_simulation import set_selected_algorithm, set_selected_assignment_algorithm
+from Simulation.simulation_config import PlanningConfig
 
 class MenuView:
     def __init__(self, parent, simulator, speed_var):
@@ -176,6 +177,21 @@ class MenuView:
             set_selected_algorithm(key)
             
         self.algo_combo.bind("<<ComboboxSelected>>", on_algo_change)
+
+        # --- Assignment Algorithm Selection ---
+        assign_frame = ttk.LabelFrame(inner_frame, text="Algoritmo de Atribuição")
+        assign_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        assign_options = ["Simulated Annealing", "Greedy", "Hill Climbing"]
+        self.assign_combo = ttk.Combobox(assign_frame, values=assign_options, state="readonly")
+        self.assign_combo.set("Simulated Annealing")
+        self.assign_combo.pack(fill=tk.X, padx=5, pady=5)
+
+        def on_assign_change(event):
+            selection = self.assign_combo.get()
+            set_selected_assignment_algorithm(selection)
+
+        self.assign_combo.bind("<<ComboboxSelected>>", on_assign_change)
 
         ttk.Label(inner_frame, text="Pesos do Planeamento (Ao Vivo)", font=("Arial", 12, "bold")).pack(pady=(15, 5), anchor=tk.W, padx=5)
 
