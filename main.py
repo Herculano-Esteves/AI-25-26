@@ -22,7 +22,11 @@ class MapApplication:
         self.speed_var = tk.DoubleVar(value=1.0)
 
         self._create_interface()
+
         self.map_view.reset_view()
+        
+        # Start the loop immediately, but it will be idle
+        self._simulation_gui_loop()
 
     def _create_interface(self):
         # TOP CONTROL BAR
@@ -105,7 +109,7 @@ class MapApplication:
         self.btn_generate_map.config(state=tk.DISABLED)
         self.btn_reset_view.config(state=tk.DISABLED)
 
-        self._simulation_gui_loop()
+        self.btn_reset_view.config(state=tk.DISABLED)
 
     def stop_simulation(self):
         print("A parar simulação...")
@@ -117,8 +121,11 @@ class MapApplication:
         self.btn_reset_view.config(state=tk.NORMAL)
 
     def _simulation_gui_loop(self):
-        if not self.simulation_running:
-            return
+        # Check if benchmark is running
+        is_benchmarking = (
+            self.menu_view.benchmark_runner is not None 
+            and self.menu_view.benchmark_runner.is_running
+        )
 
         # FPS
         current_time = time.time()
@@ -134,11 +141,15 @@ class MapApplication:
         # Speed Multiplier from Slider
         speed_mult = self.speed_var.get()
 
-        # Step Simulation
-        self.simulator.simulation_step(time_multiplier=speed_mult)
+        # Step Simulation (Only if NOT benchmarking, as benchmark has its own loop)
+        if not is_benchmarking and self.simulation_running:
+            self.simulator.simulation_step(time_multiplier=speed_mult)
 
         # Update Visuals
-        self.map_view.update_dynamic_visuals()
+        # Check if rendering is enabled
+        if self.menu_view.render_map_var.get():
+            self.map_view.update_dynamic_visuals()
+            
         self.menu_view.update_stats()
         self._update_clock()
 

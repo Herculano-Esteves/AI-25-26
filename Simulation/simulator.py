@@ -40,7 +40,7 @@ class Simulator:
         self.requests_to_pickup: List[Request] = []
         self.requests_to_dropoff: List[Request] = []
 
-        self.current_time: float = 8.0 * 60.0
+        self.current_time: float = 0
         self.stats = SimulationStats()
 
         self.setup_new_map()
@@ -55,6 +55,12 @@ class Simulator:
         # Inicializar o Gerador de Pedidos
         self.request_generator = RequestGenerator(self.map, self.hotspot_manager, seed=12345)
 
+        self.reset_simulation_state()
+
+    def reset_simulation_state(self):
+        """
+        Reseta o estado da simulação (veículos, pedidos, tempo) mantendo o mapa.
+        """
         all_nodes = list(self.map.nos)
 
         # FROTA DETERMINÍSTICA
@@ -63,7 +69,7 @@ class Simulator:
             all_nodes, self.NUM_EV_VEHICLES, self.NUM_GAS_VEHICLES, seed=42
         )
 
-        self.current_time = 8.0 * 60.0  # Começa às 08:00
+        self.current_time = 0  # Começa às 00:00
 
         # Reset das listas
         self.requests = []
@@ -71,6 +77,13 @@ class Simulator:
         self.requests_to_dropoff = []
 
         self.stats = SimulationStats()
+        
+        # Reset Traffic/Hotspots state if needed
+        if hasattr(self, 'hotspot_manager'):
+             self.hotspot_manager.update(self.get_current_hour())
+             
+        if hasattr(self, 'request_generator'):
+            self.request_generator.reset()
 
     def simulation_step(self, time_multiplier: float = 1.0):
         time_to_advance = self.SIM_TIME_PER_TICK * time_multiplier

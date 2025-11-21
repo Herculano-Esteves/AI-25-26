@@ -2,14 +2,18 @@ import tkinter as tk
 from tkinter import ttk
 from Simulation.request_simulation import set_selected_algorithm, set_selected_assignment_algorithm
 from Simulation.simulation_config import PlanningConfig
+from Simulation.benchmark import BenchmarkRunner
+
 
 class MenuView:
     def __init__(self, parent, simulator, speed_var):
         self.parent = parent
         self.simulator = simulator
         self.speed_var = speed_var
+        self.render_map_var = tk.BooleanVar(value=True)
         
         self.stats_labels = {}
+        self.benchmark_runner = None
         
         self.frame = ttk.Frame(self.parent, width=450)
         self.frame.pack(fill=tk.BOTH, expand=True)
@@ -162,9 +166,9 @@ class MenuView:
         algo_frame = ttk.LabelFrame(inner_frame, text="Algoritmo de Rota")
         algo_frame.pack(fill=tk.X, padx=10, pady=5)
         
-        algo_options = ["A* (A-Star)", "BFS (Breadth-First)", "Greedy (Best-First)"]
+        algo_options = ["A* (Informado)", "BFS (Não Informado)", "Greedy (Informado)"]
         self.algo_combo = ttk.Combobox(algo_frame, values=algo_options, state="readonly")
-        self.algo_combo.set("A* (A-Star)")
+        self.algo_combo.set("A* (Informado)")
         self.algo_combo.pack(fill=tk.X, padx=5, pady=5)
         
         def on_algo_change(event):
@@ -193,37 +197,44 @@ class MenuView:
 
         self.assign_combo.bind("<<ComboboxSelected>>", on_assign_change)
 
-        ttk.Label(inner_frame, text="Pesos do Planeamento (Ao Vivo)", font=("Arial", 12, "bold")).pack(pady=(15, 5), anchor=tk.W, padx=5)
 
-        def create_config_slider(label_text, config_attr, min_val, max_val, resolution=1.0):
-            frame = ttk.Frame(inner_frame)
-            frame.pack(fill=tk.X, padx=10, pady=2)
+        
+        # Benchmark Section
+        bench_frame = ttk.LabelFrame(inner_frame, text="Benchmark Automático")
+        bench_frame.pack(fill=tk.X, padx=10, pady=5)
+        
+        self.chk_render = ttk.Checkbutton(bench_frame, text="Renderizar Mapa (Mais lento)", variable=self.render_map_var)
+        self.chk_render.pack(anchor=tk.W, padx=5, pady=2)
+        
+        self.lbl_bench_status = ttk.Label(bench_frame, text="Pronto", font=("Arial", 9, "italic"))
+        self.lbl_bench_status.pack(anchor=tk.W, padx=5, pady=2)
+        
+        self.btn_bench = ttk.Button(bench_frame, text="Iniciar Benchmark (9 Testes)", command=self.start_benchmark_ui)
+        self.btn_bench.pack(fill=tk.X, padx=5, pady=5)
 
-            current_val = getattr(PlanningConfig, config_attr)
-            lbl = ttk.Label(frame, text=f"{label_text}: {current_val}")
-            lbl.pack(anchor=tk.W)
+    def start_benchmark_ui(self):
+        if self.benchmark_runner and self.benchmark_runner.is_running:
+            return
 
-            def on_change(val):
-                new_val = float(val)
-                setattr(PlanningConfig, config_attr, new_val)
-                lbl.config(text=f"{label_text}: {new_val:.1f}")
+        self.btn_bench.config(state=tk.DISABLED)
+        self.lbl_bench_status.config(text="A iniciar...")
+        
+        # Disable rendering if requested
+        def on_update(msg):
+            # Schedule UI update on main thread
+            self.frame.after(0, lambda: self.lbl_bench_status.config(text=msg))
+            
+        def on_complete():
+            self.frame.after(0, lambda: self._on_benchmark_complete())
 
-            scale = tk.Scale(frame, from_=min_val, to=max_val, orient=tk.HORIZONTAL, resolution=resolution, command=on_change)
-            scale.set(current_val)
-            scale.pack(fill=tk.X)
+        self.benchmark_runner = BenchmarkRunner(self.simulator, on_update, on_complete)
+        self.benchmark_runner.start_benchmark()
 
-        create_config_slider("Peso: Tempo Viagem", "WEIGHT_TIME", 0.1, 10.0, 0.1)
-        create_config_slider("Peso: Prioridade", "WEIGHT_PRIORITY", 0, 100, 1)
-        create_config_slider("Peso: Tempo Espera (Age)", "WEIGHT_AGE", 0.1, 20.0, 0.1)
-
-        ttk.Separator(inner_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-
-        create_config_slider("Penalidade: Eco Mismatch (/km)", "PENALTY_ENV_MISMATCH_PER_KM", 0, 100, 1)
-        create_config_slider("Penalidade: Lugar Vazio", "PENALTY_UNUSED_SEAT", 0, 20, 1)
-        create_config_slider("Penalidade: Risco Bateria", "WEIGHT_BATTERY_RISK", 0, 100, 1)
-
-        ttk.Separator(inner_frame, orient=tk.HORIZONTAL).pack(fill=tk.X, pady=10)
-        create_config_slider("Peso: Custo Oportunidade (EV)", "WEIGHT_LOST_OPPORTUNITY", 0, 200, 5)
+    def _on_benchmark_complete(self):
+        self.lbl_bench_status.config(text="Benchmark Concluído! Ver benchmark_results.json")
+        self.btn_bench.config(state=tk.NORMAL)
+        print("Benchmark finished.")
+        self.simulator.reset_simulation_state()
 
     def update_stats(self):
         if not self.simulator:

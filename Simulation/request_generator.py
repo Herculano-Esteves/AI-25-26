@@ -33,6 +33,16 @@ class RequestGenerator:
         self.BASE_FARE = 2.50
         self.PRICE_PER_KM = 0.80
 
+    def reset(self):
+        """Resets the generator state for a new simulation."""
+        self.next_request_time = -1.0
+        # Re-seed if we want identical request patterns every time, 
+        # but maybe we want variance? 
+        # The user asked for "benchmark", usually implies same workload.
+        # The constructor sets seed=42 (or whatever passed).
+        # We should probably re-seed to ensure fairness across algorithms.
+        self.rng = random.Random(42) 
+
     def update(self, current_time: float, requests_list: List[Request]):
         """
         Verifica se está na hora de criar um novo pedido.
