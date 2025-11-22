@@ -178,12 +178,12 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
             stats.step_revenue_generated += v.request.price
 
             simulator.requests_to_dropoff.remove(v.request)
-            
+
             # Occupancy Stats
             occupancy = v.request.passenger_capacity / v.passenger_capacity
             v.total_trips += 1
             v.sum_occupancy += occupancy
-            
+
         v.condition = VehicleCondition.AVAILABLE
         v.request = None
 
@@ -274,7 +274,7 @@ def _find_station_and_set_route(simulator: "Simulator", v: Vehicle):
     min_time = float("inf")
 
     for station in closest_candidates:
-        path_info = find_route('astar', simulator.map, v.position_node, station)
+        path_info = find_route("astar", simulator.map, v.position_node, station)
 
         if path_info:
             path, time, distance = path_info

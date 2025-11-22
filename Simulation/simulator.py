@@ -77,12 +77,12 @@ class Simulator:
         self.requests_to_dropoff = []
 
         self.stats = SimulationStats()
-        
+
         # Reset Traffic/Hotspots state if needed
-        if hasattr(self, 'hotspot_manager'):
-             self.hotspot_manager.update(self.get_current_hour())
-             
-        if hasattr(self, 'request_generator'):
+        if hasattr(self, "hotspot_manager"):
+            self.hotspot_manager.update(self.get_current_hour())
+
+        if hasattr(self, "request_generator"):
             self.request_generator.reset()
 
     def simulation_step(self, time_multiplier: float = 1.0):

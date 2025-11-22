@@ -11,6 +11,7 @@ if TYPE_CHECKING:
 
 # A* Helper Functions
 
+
 # Time calculation
 def calculate_time_minutes(distance_km: float, speed_kmh: float) -> float:
     if speed_kmh <= 0:
@@ -70,7 +71,7 @@ def bfs_route(
 
     # Para calcular o custo real do caminho encontrado (pós-processamento)
     # BFS não garante caminho mais curto em distância, apenas em saltos.
-    
+
     while queue:
         current = queue.popleft()
 
@@ -82,7 +83,7 @@ def bfs_route(
                 visited.add(neighbor)
                 came_from[neighbor] = current
                 queue.append(neighbor)
-                
+
                 if neighbor == end_node:
                     # Early exit for BFS
                     break
@@ -94,18 +95,18 @@ def bfs_route(
         return None
 
     path = _reconstruct_path(came_from, end_node)
-    
+
     # Calcular custos do caminho encontrado
     total_time = 0.0
     total_distance = 0.0
-    
+
     for i in range(len(path) - 1):
         u = path[i]
-        v = path[i+1]
+        v = path[i + 1]
         edge_info = map.connection_weight(u, v)
         if edge_info:
             dist, time_base, _ = edge_info
-            
+
             traffic_multiplier = 1.0
             if traffic_manager:
                 mid_lon = (u.position[0] + v.position[0]) / 2
@@ -113,7 +114,7 @@ def bfs_route(
                 traffic_multiplier = traffic_manager.get_traffic_factor(
                     (mid_lon, mid_lat), current_time
                 )
-            
+
             total_distance += dist
             total_time += time_base * traffic_multiplier
 
@@ -134,8 +135,10 @@ def greedy_route(
     """
     open_set = []
     # Priority Queue ordena apenas por h(n)
-    heapq.heappush(open_set, (_heuristic_distance(start_node, end_node), hash(start_node), start_node))
-    
+    heapq.heappush(
+        open_set, (_heuristic_distance(start_node, end_node), hash(start_node), start_node)
+    )
+
     came_from: Dict[Node, Node] = {}
     visited = {start_node}
 
@@ -149,7 +152,7 @@ def greedy_route(
             total_distance = 0.0
             for i in range(len(path) - 1):
                 u = path[i]
-                v = path[i+1]
+                v = path[i + 1]
                 edge_info = map.connection_weight(u, v)
                 if edge_info:
                     dist, time_base, _ = edge_info
@@ -189,15 +192,15 @@ def astar_route(
     open_set = []
     heapq.heappush(open_set, (0, hash(start_node), start_node))
     open_set_map = {start_node}
-    
+
     came_from: Dict[Node, Node] = {}
-    
+
     g_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     g_score[start_node] = 0.0
-    
+
     d_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     d_score[start_node] = 0.0
-    
+
     f_score: Dict[Node, float] = defaultdict(lambda: float("inf"))
     f_score[start_node] = _heuristic_distance(start_node, end_node)
 
@@ -261,16 +264,16 @@ def find_route(
 ) -> Optional[Tuple[List[Node], float, float]]:
     """
     Função seletora que executa o algoritmo de procura escolhido.
-    
+
     :param algorithm: 'astar', 'bfs', ou 'greedy'
     """
     algo = algorithm.lower()
-    
-    if algo == 'bfs':
+
+    if algo == "bfs":
         return bfs_route(map, start_node, end_node, current_time, traffic_manager)
-    elif algo == 'greedy':
+    elif algo == "greedy":
         return greedy_route(map, start_node, end_node, current_time, traffic_manager)
-    elif algo == 'astar':
+    elif algo == "astar":
         return astar_route(map, start_node, end_node, current_time, traffic_manager)
     else:
         # Fallback to A* if unknown

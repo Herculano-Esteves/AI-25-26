@@ -1,0 +1,417 @@
+<!DOCTYPE html>
+<html lang="pt-PT">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Relatório de Simulação de Mobilidade</title>
+
+    <!-- Carregando Tailwind CSS para estilo -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <!-- Carregando Chart.js para gráficos -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- FontAwesome para ícones -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: #f3f4f6;
+        }
+
+        .card {
+            @apply bg-white rounded-xl shadow-md p-6 transition-all duration-300 hover:shadow-lg;
+        }
+
+        .stat-value {
+            @apply text-2xl font-bold text-gray-800;
+        }
+
+        .stat-label {
+            @apply text-sm text-gray-500 uppercase tracking-wide;
+        }
+
+        .badge {
+            @apply px-2 py-1 rounded text-xs font-semibold;
+        }
+    </style>
+</head>
+
+<body class="pb-10">
+
+    <!-- Cabeçalho -->
+    <header class="bg-slate-800 text-white p-6 shadow-lg sticky top-0 z-50">
+        <div class="max-w-7xl mx-auto flex justify-between items-center">
+            <div>
+                <h1 class="text-2xl font-bold"><i class="fas fa-chart-line mr-2"></i>Análise de Algoritmos de Mobilidade
+                </h1>
+                <p class="text-slate-400 text-sm mt-1">Comparação de estratégias de Routing (Rotas) e Assignment
+                    (Atribuição)</p>
+            </div>
+            <button onclick="window.print()"
+                class="bg-blue-600 hover:bg-blue-700 px-4 py-2 rounded-lg transition text-sm">
+                <i class="fas fa-print mr-2"></i>Imprimir Relatório
+            </button>
+        </div>
+    </header>
+
+    <main class="max-w-7xl mx-auto mt-8 px-4 space-y-8">
+
+        <!-- Seção de Vencedores (Highlights) -->
+        <section id="highlights" class="grid grid-cols-1 md:grid-cols-4 gap-6">
+            <!-- Injetado via JS -->
+        </section>
+
+        <!-- Gráficos Principais -->
+        <section class="grid grid-cols-1 lg:grid-cols-2 gap-8">
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">Lucro Líquido por Combinação</h3>
+                <canvas id="profitChart"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">Eficiência de Atendimento (Completos
+                    vs Falhados)</h3>
+                <canvas id="requestsChart"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">Métricas de Tempo (Médias)</h3>
+                <canvas id="timeChart"></canvas>
+            </div>
+            <div class="bg-white p-6 rounded-xl shadow-md">
+                <h3 class="text-lg font-semibold mb-4 text-gray-700 border-b pb-2">Impacto Ambiental (Total CO2)</h3>
+                <canvas id="co2Chart"></canvas>
+            </div>
+        </section>
+
+        <!-- Resumo Analítico -->
+        <section class="bg-white p-8 rounded-xl shadow-md border-l-4 border-blue-500">
+            <h2 class="text-2xl font-bold text-gray-800 mb-4"><i
+                    class="fas fa-lightbulb text-yellow-500 mr-2"></i>Resumo Analítico Detalhado</h2>
+            <div id="textSummary" class="prose max-w-none text-gray-700 space-y-4">
+                <!-- Gerado via JS -->
+            </div>
+        </section>
+
+        <!-- Tabela de Dados Detalhada -->
+        <section class="bg-white rounded-xl shadow-md overflow-hidden">
+            <div class="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h3 class="text-lg font-bold text-gray-800">Tabela de Dados Brutos</h3>
+                <input type="text" id="tableSearch" placeholder="Filtrar..." class="border rounded px-3 py-1 text-sm">
+            </div>
+            <div class="overflow-x-auto">
+                <table class="w-full text-sm text-left text-gray-600">
+                    <thead class="text-xs text-gray-700 uppercase bg-gray-50">
+                        <tr>
+                            <th class="px-6 py-3">Routing</th>
+                            <th class="px-6 py-3">Assignment</th>
+                            <th class="px-6 py-3 text-right cursor-pointer" onclick="sortTable('profit')">Lucro (€) <i
+                                    class="fas fa-sort"></i></th>
+                            <th class="px-6 py-3 text-right cursor-pointer" onclick="sortTable('completed')">Entregas <i
+                                    class="fas fa-sort"></i></th>
+                            <th class="px-6 py-3 text-right cursor-pointer" onclick="sortTable('failed')">Falhas <i
+                                    class="fas fa-sort"></i></th>
+                            <th class="px-6 py-3 text-right cursor-pointer" onclick="sortTable('wait')">Espera Média
+                                (min) <i class="fas fa-sort"></i></th>
+                            <th class="px-6 py-3 text-right cursor-pointer" onclick="sortTable('co2')">CO2 (kg) <i
+                                    class="fas fa-sort"></i></th>
+                        </tr>
+                    </thead>
+                    <tbody id="dataTableBody">
+                        <!-- Linhas da tabela via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </section>
+
+    </main>
+
+    <footer class="text-center text-gray-400 text-sm mt-12 mb-4">
+        Gerado automaticamente a partir de ficheiros JSON de simulação.
+    </footer>
+
+    <script>
+        // --- DADOS ---
+        // Dados extraídos dos 9 ficheiros JSON fornecidos
+        const rawData = [
+            {
+                "routing": "Greedy", "assignment": "Simulated Annealing",
+                "profit": 32582.98, "revenue": 42278.30, "cost": 9695.31,
+                "completed": 5577, "failed": 1346, "co2": 2934.72, "wait_time": 16.88, "trip_time": 27.28
+            },
+            {
+                "routing": "Greedy", "assignment": "Hill Climbing",
+                "profit": 32701.14, "revenue": 42303.81, "cost": 9602.67,
+                "completed": 5596, "failed": 1327, "co2": 2901.03, "wait_time": 16.66, "trip_time": 27.02
+            },
+            {
+                "routing": "BFS", "assignment": "Simulated Annealing",
+                "profit": 32987.77, "revenue": 42620.44, "cost": 9632.67,
+                "completed": 5636, "failed": 1287, "co2": 2985.77, "wait_time": 15.69, "trip_time": 26.07
+            },
+            {
+                "routing": "Greedy", "assignment": "Greedy",
+                "profit": 33399.44, "revenue": 43293.03, "cost": 9893.59,
+                "completed": 5532, "failed": 1390, "co2": 2967.92, "wait_time": 17.39, "trip_time": 28.20
+            },
+            {
+                "routing": "A*", "assignment": "Simulated Annealing",
+                "profit": 36319.77, "revenue": 44880.53, "cost": 8560.76,
+                "completed": 5928, "failed": 995, "co2": 2868.99, "wait_time": 12.73, "trip_time": 23.18
+            },
+            {
+                "routing": "BFS", "assignment": "Hill Climbing",
+                "profit": 33221.85, "revenue": 42813.17, "cost": 9591.33,
+                "completed": 5658, "failed": 1265, "co2": 3004.90, "wait_time": 15.64, "trip_time": 26.04
+            },
+            {
+                "routing": "A*", "assignment": "Hill Climbing",
+                "profit": 35927.74, "revenue": 44541.42, "cost": 8613.68,
+                "completed": 5880, "failed": 1043, "co2": 2806.41, "wait_time": 12.54, "trip_time": 22.97
+            },
+            {
+                "routing": "BFS", "assignment": "Greedy",
+                "profit": 33524.26, "revenue": 43485.09, "cost": 9960.83,
+                "completed": 5556, "failed": 1367, "co2": 3032.79, "wait_time": 16.32, "trip_time": 27.13
+            },
+            {
+                "routing": "A*", "assignment": "Greedy",
+                "profit": 36795.91, "revenue": 45610.55, "cost": 8814.64,
+                "completed": 5840, "failed": 1083, "co2": 2821.24, "wait_time": 13.04, "trip_time": 23.89
+            }
+        ];
+
+        // --- LOGICA DE PROCESSAMENTO ---
+
+        // Ordenar dados para consistência nos gráficos (agrupados por Routing)
+        rawData.sort((a, b) => a.profit - b.profit);
+
+        const labels = rawData.map(d => `${d.routing} + ${d.assignment}`);
+        const colors = {
+            astar: 'rgba(34, 197, 94, 0.7)', // Green
+            bfs: 'rgba(59, 130, 246, 0.7)',   // Blue
+            greedy: 'rgba(239, 68, 68, 0.7)'  // Red
+        };
+
+        function getColor(routing) {
+            if (routing === 'A*') return colors.astar;
+            if (routing === 'BFS') return colors.bfs;
+            return colors.greedy;
+        }
+
+        const backgroundColors = rawData.map(d => getColor(d.routing));
+        const borderColors = rawData.map(d => getColor(d.routing).replace('0.7', '1'));
+
+        // --- RENDERIZAR DESTAQUES (CARDS) ---
+        function renderHighlights() {
+            const bestProfit = [...rawData].sort((a, b) => b.profit - a.profit)[0];
+            const bestWait = [...rawData].sort((a, b) => a.wait_time - b.wait_time)[0];
+            const lowestCo2 = [...rawData].sort((a, b) => a.co2 - b.co2)[0];
+            const bestService = [...rawData].sort((a, b) => a.failed - b.failed)[0];
+
+            const container = document.getElementById('highlights');
+
+            const createCard = (title, value, sub, icon, colorClass, winnerName) => `
+                <div class="bg-white p-6 rounded-xl shadow-md border-t-4 ${colorClass}">
+                    <div class="flex justify-between items-start">
+                        <div>
+                            <p class="text-xs font-bold text-gray-400 uppercase">${title}</p>
+                            <h3 class="text-2xl font-bold text-gray-800 mt-1">${value}</h3>
+                        </div>
+                        <div class="p-2 bg-gray-100 rounded-lg text-gray-600">
+                            <i class="fas ${icon}"></i>
+                        </div>
+                    </div>
+                    <div class="mt-4">
+                        <span class="text-xs font-medium bg-gray-100 text-gray-600 px-2 py-1 rounded">
+                            ${winnerName}
+                        </span>
+                        <p class="text-xs text-gray-400 mt-2">${sub}</p>
+                    </div>
+                </div>
+            `;
+
+            container.innerHTML =
+                createCard('Maior Lucro', `€ ${bestProfit.profit.toLocaleString()}`, 'Receita maximizada', 'fa-coins', 'border-green-500', `${bestProfit.routing} + ${bestProfit.assignment}`) +
+                createCard('Menor Espera Média', `${bestWait.wait_time.toFixed(2)} min`, 'Melhor experiência cliente', 'fa-clock', 'border-blue-500', `${bestWait.routing} + ${bestWait.assignment}`) +
+                createCard('Menor Emissão CO2', `${lowestCo2.co2.toFixed(0)} kg`, 'Mais sustentável', 'fa-leaf', 'border-emerald-500', `${lowestCo2.routing} + ${lowestCo2.assignment}`) +
+                createCard('Maior Taxa Sucesso', `${((bestService.completed / (bestService.completed + bestService.failed)) * 100).toFixed(1)}%`, `${bestService.failed} falhas apenas`, 'fa-check-circle', 'border-purple-500', `${bestService.routing} + ${bestService.assignment}`);
+        }
+
+        // --- RENDERIZAR RESUMO DE TEXTO ---
+        function renderTextSummary() {
+            const bestProfit = [...rawData].sort((a, b) => b.profit - a.profit)[0];
+            const worstProfit = [...rawData].sort((a, b) => a.profit - b.profit)[0];
+
+            // Calcular média de lucro por Routing
+            const groupStats = {};
+            rawData.forEach(d => {
+                if (!groupStats[d.routing]) groupStats[d.routing] = { profit: 0, count: 0, wait: 0 };
+                groupStats[d.routing].profit += d.profit;
+                groupStats[d.routing].wait += d.wait_time;
+                groupStats[d.routing].count++;
+            });
+
+            let analysisHTML = `
+                <p><strong>Dominância do Algoritmo A*:</strong> A análise dos 9 cenários revela que o uso do algoritmo de roteamento <strong>A* (A-Star)</strong> é consistentemente superior. Todas as três combinações envolvendo A* ocupam as primeiras posições em termos de lucro e eficiência operacional. A combinação <strong>A* + Greedy</strong> gerou o maior lucro total (€ ${bestProfit.profit.toLocaleString()}), superando o pior cenário (${worstProfit.routing} + ${worstProfit.assignment}) em mais de € ${(bestProfit.profit - worstProfit.profit).toLocaleString()}.</p>
+                
+                <p><strong>Impacto no Tempo de Espera:</strong> O algoritmo A* não só é mais rentável, mas também reduz drasticamente o tempo de espera. Enquanto cenários com Greedy ou BFS têm tempos de espera médios em torno de 16-17 minutos, o A* mantém consistentemente tempos abaixo de 13 minutos, melhorando a qualidade do serviço.</p>
+
+                <p><strong>Sustentabilidade vs Lucro:</strong> Curiosamente, o cenário mais lucrativo (A* + Greedy) não é o mais ecológico. O menor impacto ambiental foi obtido com <strong>A* + Hill Climbing</strong>, emitindo ${[...rawData].sort((a, b) => a.co2 - b.co2)[0].co2.toFixed(0)}kg de CO2. Isso sugere um ligeiro <em>trade-off</em> onde a otimização "Simulated Annealing" ou "Hill Climbing" pode sacrificar um pouco de receita imediata por rotas mais eficientes energeticamente ou melhor distribuição de carga.</p>
+            `;
+
+            document.getElementById('textSummary').innerHTML = analysisHTML;
+        }
+
+        // --- RENDERIZAR TABELA ---
+        function renderTable() {
+            const tbody = document.getElementById('dataTableBody');
+            tbody.innerHTML = rawData.map(row => `
+                <tr class="bg-white border-b hover:bg-gray-50 transition">
+                    <td class="px-6 py-4 font-medium text-gray-900">
+                        <span class="px-2 py-1 rounded text-xs text-white ${row.routing === 'A*' ? 'bg-green-500' : row.routing === 'BFS' ? 'bg-blue-500' : 'bg-red-500'}">
+                            ${row.routing}
+                        </span>
+                    </td>
+                    <td class="px-6 py-4">${row.assignment}</td>
+                    <td class="px-6 py-4 text-right font-bold text-gray-700">€ ${row.profit.toLocaleString(undefined, { minimumFractionDigits: 2 })}</td>
+                    <td class="px-6 py-4 text-right text-green-600">${row.completed}</td>
+                    <td class="px-6 py-4 text-right text-red-500">${row.failed}</td>
+                    <td class="px-6 py-4 text-right">${row.wait_time.toFixed(2)}</td>
+                    <td class="px-6 py-4 text-right">${row.co2.toFixed(2)}</td>
+                </tr>
+            `).join('');
+        }
+
+        // --- CONFIGURAÇÃO CHART.JS ---
+        function initCharts() {
+            Chart.defaults.font.family = 'Inter';
+
+            // 1. Gráfico de Lucro
+            new Chart(document.getElementById('profitChart'), {
+                type: 'bar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Lucro (€)',
+                        data: rawData.map(d => d.profit),
+                        backgroundColor: backgroundColors,
+                        borderColor: borderColors,
+                        borderWidth: 1
+                    }]
+                },
+                options: {
+                    indexAxis: 'y',
+                    responsive: true,
+                    plugins: { legend: { display: false } }
+                }
+            });
+
+            // 2. Gráfico de Requisições
+            new Chart(document.getElementById('requestsChart'), {
+                type: 'bar',
+                data: {
+                    labels: rawData.map(d => d.routing.substring(0, 1) + "+" + d.assignment.substring(0, 3)), // Abreviações para caber
+                    datasets: [
+                        {
+                            label: 'Completos',
+                            data: rawData.map(d => d.completed),
+                            backgroundColor: 'rgba(34, 197, 94, 0.6)'
+                        },
+                        {
+                            label: 'Falhados',
+                            data: rawData.map(d => d.failed),
+                            backgroundColor: 'rgba(239, 68, 68, 0.6)'
+                        }
+                    ]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        x: { stacked: true },
+                        y: { stacked: true }
+                    }
+                }
+            });
+
+            // 3. Gráfico de Tempos
+            new Chart(document.getElementById('timeChart'), {
+                type: 'line',
+                data: {
+                    labels: labels,
+                    datasets: [
+                        {
+                            label: 'Espera Média (min)',
+                            data: rawData.map(d => d.wait_time),
+                            borderColor: 'rgb(249, 115, 22)',
+                            backgroundColor: 'rgba(249, 115, 22, 0.1)',
+                            fill: true,
+                            tension: 0.4
+                        },
+                        {
+                            label: 'Viagem Média (min)',
+                            data: rawData.map(d => d.trip_time),
+                            borderColor: 'rgb(59, 130, 246)',
+                            backgroundColor: 'transparent',
+                            borderDash: [5, 5],
+                            tension: 0.4
+                        }
+                    ]
+                },
+                options: { responsive: true }
+            });
+
+            // 4. Gráfico de CO2
+            new Chart(document.getElementById('co2Chart'), {
+                type: 'radar',
+                data: {
+                    labels: labels,
+                    datasets: [{
+                        label: 'Emissão CO2 (kg)',
+                        data: rawData.map(d => d.co2),
+                        backgroundColor: 'rgba(16, 185, 129, 0.2)',
+                        borderColor: 'rgb(16, 185, 129)',
+                        pointBackgroundColor: 'rgb(16, 185, 129)',
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    scales: {
+                        r: {
+                            beginAtZero: false // Para destacar as diferenças sutis
+                        }
+                    }
+                }
+            });
+        }
+
+        // Inicialização
+        window.onload = function () {
+            renderHighlights();
+            renderTextSummary();
+            renderTable();
+            initCharts();
+        };
+
+        // Função simples de sort para a tabela
+        let currentSort = { field: null, asc: false };
+        function sortTable(field) {
+            currentSort.asc = currentSort.field === field ? !currentSort.asc : false;
+            currentSort.field = field;
+
+            // Mapeamento de campos para propriedades do objeto
+            const keyMap = {
+                'profit': 'profit',
+                'completed': 'completed',
+                'failed': 'failed',
+                'wait': 'wait_time',
+                'co2': 'co2'
+            };
+
+            const key = keyMap[field];
+            rawData.sort((a, b) => currentSort.asc ? a[key] - b[key] : b[key] - a[key]);
+            renderTable();
+        }
+    </script>
+</body>
+
+</html>

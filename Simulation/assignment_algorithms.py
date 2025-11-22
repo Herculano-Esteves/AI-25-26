@@ -8,6 +8,7 @@ from Simulation.simulation_config import PlanningConfig
 if TYPE_CHECKING:
     from Simulation.simulator import Simulator
 
+
 class SAState:
     def __init__(self, assignment: List[int], backlog: Set[int]):
         self.assignment = assignment
@@ -223,13 +224,13 @@ def greedy_solver(
     """
     num_vehicles = cost_matrix.shape[0]
     num_requests = cost_matrix.shape[1]
-    
+
     assignment = [-1] * num_vehicles
     assigned_requests = set()
-    
+
     # Ordenar veículos pode influenciar, vamos fazer por ordem de índice para simplicidade
     # Ou podíamos ordenar atribuições possíveis por custo global.
-    
+
     # Abordagem: Listar todas as arestas (v, r) válidas, ordenar por custo e preencher.
     possible_assignments = []
     for v in range(num_vehicles):
@@ -237,15 +238,15 @@ def greedy_solver(
             cost = cost_matrix[v, r]
             if cost != float("inf"):
                 possible_assignments.append((cost, v, r))
-                
+
     # Ordena por menor custo
     possible_assignments.sort(key=lambda x: x[0])
-    
+
     for cost, v, r in possible_assignments:
         if assignment[v] == -1 and r not in assigned_requests:
             assignment[v] = r
             assigned_requests.add(r)
-            
+
     return assignment
 
 
@@ -264,7 +265,7 @@ def hill_climbing_solver(
     # Inicialização (Mesma lógica do SA para ter um bom ponto de partida)
     assign = [-1] * num_vehicles
     backlog = set(range(num_requests))
-    
+
     # Greedy Initialization
     possible_assignments = []
     for v in range(num_vehicles):
@@ -272,7 +273,7 @@ def hill_climbing_solver(
             if cost_matrix[v, r] != float("inf"):
                 possible_assignments.append((cost_matrix[v, r], v, r))
     possible_assignments.sort(key=lambda x: x[0])
-    
+
     assigned_reqs = set()
     for _, v, r in possible_assignments:
         if assign[v] == -1 and r not in assigned_reqs:
@@ -284,19 +285,19 @@ def hill_climbing_solver(
     current_energy = calculate_total_system_energy(
         current_state, cost_matrix, requests, simulator.current_time
     )
-    
+
     MAX_ITER = 500
-    
+
     for _ in range(MAX_ITER):
         neighbor = get_neighbor(current_state, num_vehicles, cost_matrix, requests)
         neighbor_energy = calculate_total_system_energy(
             neighbor, cost_matrix, requests, simulator.current_time
         )
-        
+
         if neighbor_energy < current_energy:
             current_state = neighbor
             current_energy = neighbor_energy
-            
+
     return current_state.assignment
 
 
@@ -308,10 +309,10 @@ def solve_assignment(
     initial_temp: float = 200.0,
 ) -> List[int]:
     algo = algorithm.lower()
-    
-    if algo == 'greedy':
+
+    if algo == "greedy":
         return greedy_solver(simulator, cost_matrix, requests)
-    elif algo == 'hill climbing':
+    elif algo == "hill climbing":
         return hill_climbing_solver(simulator, cost_matrix, requests)
     else:
         # Default to SA

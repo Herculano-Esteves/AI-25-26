@@ -4,6 +4,7 @@ import os
 from PIL import Image, ImageTk
 from models.vehicle import Motor
 
+
 class MapView:
     # GUI constants
     TICK_RATE_MS = 50
@@ -30,7 +31,7 @@ class MapView:
     def __init__(self, parent, simulator):
         self.parent = parent
         self.simulator = simulator
-        
+
         self.sprite_cache = {}
         self._load_sprites()
 
@@ -141,7 +142,7 @@ class MapView:
             zoom_factor = self.ZOOM_OUT_FACTOR
         else:
             return
-        
+
         world_x_before, world_y_before = self._canvas_to_world(event.x, event.y)
         self.zoom *= zoom_factor
         canvas_x_after, canvas_y_after = self._world_to_canvas(world_x_before, world_y_before)
@@ -162,12 +163,12 @@ class MapView:
         delta_x = event.x - self._drag_last_x
         delta_y = event.y - self._drag_last_y
         self.canvas.move("all", delta_x, delta_y)
-        
+
         total_delta_x = event.x - self._drag_start_x
         total_delta_y = event.y - self._drag_start_y
         self.offset_x = self._drag_start_offset_x + total_delta_x
         self.offset_y = self._drag_start_offset_y + total_delta_y
-        
+
         self._drag_last_x = event.x
         self._drag_last_y = event.y
 
@@ -222,24 +223,33 @@ class MapView:
         self._draw_station_overlays()
         self._draw_requests()
         self._draw_vehicles()
-        
+
         # Debug Info
         self.canvas.create_text(
-            10, 10, anchor=tk.NW, fill=self.DEBUG_TEXT_COLOR,
-            text=f"Zoom: {self.zoom:.2f} | Offset: ({self.offset_x:.0f}, {self.offset_y:.0f})"
+            10,
+            10,
+            anchor=tk.NW,
+            fill=self.DEBUG_TEXT_COLOR,
+            text=f"Zoom: {self.zoom:.2f} | Offset: ({self.offset_x:.0f}, {self.offset_y:.0f})",
         )
 
     def _draw_edges(self, c_width, c_height, margin):
-        show_traffic = (self.zoom > self.ZOOM_THRESHOLD_TRAFFIC) and hasattr(self.simulator, "traffic_manager")
-        
+        show_traffic = (self.zoom > self.ZOOM_THRESHOLD_TRAFFIC) and hasattr(
+            self.simulator, "traffic_manager"
+        )
+
         for start_node, vizinhos in self.simulator.map.adj.items():
             x1, y1 = self._world_to_canvas(*start_node.position)
             for end_node in vizinhos:
                 if id(start_node) < id(end_node):
                     x2, y2 = self._world_to_canvas(*end_node.position)
-                    
-                    if (max(x1, x2) < -margin or min(x1, x2) > c_width + margin or
-                        max(y1, y2) < -margin or min(y1, y2) > c_height + margin):
+
+                    if (
+                        max(x1, x2) < -margin
+                        or min(x1, x2) > c_width + margin
+                        or max(y1, y2) < -margin
+                        or min(y1, y2) > c_height + margin
+                    ):
                         continue
 
                     color = self.EDGE_COLOR
@@ -258,22 +268,28 @@ class MapView:
                             color = "#ffbb33"
                             width = 2
 
-                    self.canvas.create_line(x1, y1, x2, y2, fill=color, width=width, tags=("aresta",))
+                    self.canvas.create_line(
+                        x1, y1, x2, y2, fill=color, width=width, tags=("aresta",)
+                    )
 
     def _draw_nodes(self, c_width, c_height, margin):
         sprite_gas = self.sprite_cache.get("gas")
         sprite_ev = self.sprite_cache.get("ev")
-        
+
         if hasattr(self.simulator.map, "gas_stations") and sprite_gas:
             for node in self.simulator.map.gas_stations:
                 x, y = self._world_to_canvas(*node.position)
-                if not (x < -margin or x > c_width + margin or y < -margin or y > c_height + margin):
+                if not (
+                    x < -margin or x > c_width + margin or y < -margin or y > c_height + margin
+                ):
                     self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
 
         if hasattr(self.simulator.map, "ev_stations") and sprite_ev:
             for node in self.simulator.map.ev_stations:
                 x, y = self._world_to_canvas(*node.position)
-                if not (x < -margin or x > c_width + margin or y < -margin or y > c_height + margin):
+                if not (
+                    x < -margin or x > c_width + margin or y < -margin or y > c_height + margin
+                ):
                     self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
 
     def _draw_station_overlays(self):
@@ -294,11 +310,25 @@ class MapView:
                 x, y = self._world_to_canvas(*node.position)
                 if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
                     continue
-                
-                self.canvas.create_line(x - overlay_radius, y - overlay_radius, x + overlay_radius, y + overlay_radius,
-                                      fill="red", width=4, tags=("no", "falha_overlay"))
-                self.canvas.create_line(x - overlay_radius, y + overlay_radius, x + overlay_radius, y - overlay_radius,
-                                      fill="red", width=4, tags=("no", "falha_overlay"))
+
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y - overlay_radius,
+                    x + overlay_radius,
+                    y + overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
+                self.canvas.create_line(
+                    x - overlay_radius,
+                    y + overlay_radius,
+                    x + overlay_radius,
+                    y - overlay_radius,
+                    fill="red",
+                    width=4,
+                    tags=("no", "falha_overlay"),
+                )
 
     def _draw_requests(self):
         self.canvas.delete("request")
@@ -308,17 +338,27 @@ class MapView:
         if sprite_wait:
             for p in self.simulator.requests:
                 x, y = self._world_to_canvas(*p.start_node.position)
-                self.canvas.create_image(x, y - 10, image=sprite_wait, tags=("request", f"request_{p.id}"))
+                self.canvas.create_image(
+                    x, y - 10, image=sprite_wait, tags=("request", f"request_{p.id}")
+                )
 
         if sprite_accepted:
             for p in self.simulator.requests_to_pickup:
                 x, y = self._world_to_canvas(*p.start_node.position)
-                self.canvas.create_image(x, y - 10, image=sprite_accepted, tags=("request", f"request_{p.id}"))
+                self.canvas.create_image(
+                    x, y - 10, image=sprite_accepted, tags=("request", f"request_{p.id}")
+                )
 
         for p in self.simulator.requests_to_dropoff:
             x, y = self._world_to_canvas(*p.end_node.position)
-            self.canvas.create_text(x, y, text="⚑", fill=self.REQUEST_DESTINATION_COLOR,
-                                  font=self.REQUEST_FONT, tags=("request", f"request_{p.id}"))
+            self.canvas.create_text(
+                x,
+                y,
+                text="⚑",
+                fill=self.REQUEST_DESTINATION_COLOR,
+                font=self.REQUEST_FONT,
+                tags=("request", f"request_{p.id}"),
+            )
 
     def _draw_vehicles(self):
         self.canvas.delete("vehicle")
@@ -329,12 +369,14 @@ class MapView:
             x, y = self._world_to_canvas(*v.map_coordinates)
             sprite_to_use = sprite_ev if v.motor == Motor.ELECTRIC else sprite_gas
             if sprite_to_use:
-                self.canvas.create_image(x, y, image=sprite_to_use, tags=("vehicle", f"vehicle_{v.id}"))
+                self.canvas.create_image(
+                    x, y, image=sprite_to_use, tags=("vehicle", f"vehicle_{v.id}")
+                )
 
     def _draw_hotspots(self):
         if not self.simulator.hotspot_manager:
             return
-        
+
         self.canvas.delete("hotspot")
         c_width = self.canvas.winfo_width()
         c_height = self.canvas.winfo_height()
@@ -348,11 +390,24 @@ class MapView:
                 continue
 
             outline_color = "green" if h.is_active else "red"
-            self.canvas.create_oval(x - radius_pixels, y - radius_pixels, x + radius_pixels, y + radius_pixels,
-                                  outline=outline_color, width=2, tags="hotspot")
+            self.canvas.create_oval(
+                x - radius_pixels,
+                y - radius_pixels,
+                x + radius_pixels,
+                y + radius_pixels,
+                outline=outline_color,
+                width=2,
+                tags="hotspot",
+            )
 
             if self.zoom > 10000:
                 font_size = min(int(self.zoom / 10000 * 5), 15)
                 if font_size > 0:
-                    self.canvas.create_text(x, y, text=h.name, fill="white",
-                                          font=("Arial", font_size, "bold"), tags="hotspot")
+                    self.canvas.create_text(
+                        x,
+                        y,
+                        text=h.name,
+                        fill="white",
+                        font=("Arial", font_size, "bold"),
+                        tags="hotspot",
+                    )

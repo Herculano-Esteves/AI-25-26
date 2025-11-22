@@ -13,18 +13,18 @@ if TYPE_CHECKING:
 
 BASE_TIMEOUT_MINUTES = 30.0
 TIMEOUT_REDUCTION_PER_PRIORITY = 5.0
-CANCELLATION_PENALTY_EUR = 5.0  # Fee for client lost
+CANCELLATION_PENALTY_EUR = 3.0  # Fee for client lost
 
 from Simulation.simulation_config import PlanningConfig
 from Simulation.assignment_algorithms import solve_assignment
 
 # Configuração do Algoritmo de Procura (Routing)
 # Opções: 'astar', 'bfs', 'greedy'
-_selected_algorithm = 'astar'
+_selected_algorithm = "astar"
 
 # Configuração do Algoritmo de Atribuição (Assignment)
 # Opções: 'simulated annealing', 'greedy', 'hill climbing'
-_selected_assignment_algorithm = 'simulated annealing'
+_selected_assignment_algorithm = "simulated annealing"
 
 
 def get_selected_algorithm() -> str:
@@ -45,9 +45,6 @@ def set_selected_assignment_algorithm(algo: str):
     global _selected_assignment_algorithm
     _selected_assignment_algorithm = algo
     print(f"[Config] Algoritmo de atribuição alterado para: {algo}")
-
-
-
 
 
 class StrategyManager:
@@ -80,9 +77,6 @@ class StrategyManager:
         if not stations:
             return float("inf")
         return min(_heuristic_distance(node, s) for s in stations)
-
-
-
 
 
 def _calculate_base_time_cost(time_to_pickup: float) -> float:
@@ -120,9 +114,7 @@ def _calculate_battery_risk(remaining_km_after: float) -> float:
 
     if remaining_km_after < PlanningConfig.BATTERY_CRITICAL_LEVEL:
         deficit = PlanningConfig.BATTERY_CRITICAL_LEVEL - remaining_km_after
-        return (
-            deficit**PlanningConfig.BATTERY_RISK_EXPONENT
-        ) * PlanningConfig.WEIGHT_BATTERY_RISK
+        return (deficit**PlanningConfig.BATTERY_RISK_EXPONENT) * PlanningConfig.WEIGHT_BATTERY_RISK
     return 0.0
 
 
@@ -142,9 +134,7 @@ def _calculate_future_logistics_cost(
     final_pos = request.end_node
 
     # 1. & 2. Reabastecimento
-    dist_station = StrategyManager.get_dist_to_nearest_station(
-        final_pos, vehicle.motor, simulator
-    )
+    dist_station = StrategyManager.get_dist_to_nearest_station(final_pos, vehicle.motor, simulator)
     if dist_station > remaining_km_after:
         return float("inf")  # Stranded
 
@@ -216,9 +206,7 @@ def calculate_detailed_cost(
     cost += battery_risk
 
     # 4. Logística Futura (Pós-Entrega)
-    future_cost = _calculate_future_logistics_cost(
-        vehicle, request, remaining_km_after, simulator
-    )
+    future_cost = _calculate_future_logistics_cost(vehicle, request, remaining_km_after, simulator)
     if future_cost == float("inf"):
         return float("inf")
     cost += future_cost
@@ -230,9 +218,6 @@ def calculate_detailed_cost(
     cost += _calculate_profit_adjustment(vehicle, request, dist_to_pickup)
 
     return cost
-
-
-
 
 
 def check_timeouts(simulator: "Simulator"):
@@ -324,8 +309,7 @@ def assign_pending_requests(simulator: "Simulator"):
         initial_temp = 450.0
 
     final_assignment = solve_assignment(
-        get_selected_assignment_algorithm(),
-        simulator, cost_matrix, pending_requests, initial_temp
+        get_selected_assignment_algorithm(), simulator, cost_matrix, pending_requests, initial_temp
     )
 
     assignments_to_make = []

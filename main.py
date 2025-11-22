@@ -5,6 +5,7 @@ from Simulation.simulator import Simulator
 from Gui.map import MapView
 from Gui.menu import MenuView
 
+
 class MapApplication:
     def __init__(self, root):
         self.root = root
@@ -24,7 +25,7 @@ class MapApplication:
         self._create_interface()
 
         self.map_view.reset_view()
-        
+
         # Start the loop immediately, but it will be idle
         self._simulation_gui_loop()
 
@@ -42,7 +43,9 @@ class MapApplication:
         )
         self.btn_generate_map.pack(side=tk.LEFT, padx=2)
 
-        self.btn_reset_view = ttk.Button(btn_frame, text="Resetar View", command=lambda: self.map_view.reset_view())
+        self.btn_reset_view = ttk.Button(
+            btn_frame, text="Resetar View", command=lambda: self.map_view.reset_view()
+        )
         self.btn_reset_view.pack(side=tk.LEFT, padx=2)
 
         self.btn_start_sim = ttk.Button(btn_frame, text="▶ Iniciar", command=self.start_simulation)
@@ -70,9 +73,7 @@ class MapApplication:
         self.time_label.pack(side=tk.TOP, anchor="e")
 
         # Weather (Medium, Bottom)
-        self.weather_label = ttk.Label(
-            info_panel, text="--", font=("Arial", 11)
-        )
+        self.weather_label = ttk.Label(info_panel, text="--", font=("Arial", 11))
         self.weather_label.pack(side=tk.TOP, anchor="e")
 
         # FPS Label (Left of the clock)
@@ -123,7 +124,7 @@ class MapApplication:
     def _simulation_gui_loop(self):
         # Check if benchmark is running
         is_benchmarking = (
-            self.menu_view.benchmark_runner is not None 
+            self.menu_view.benchmark_runner is not None
             and self.menu_view.benchmark_runner.is_running
         )
 
@@ -149,7 +150,7 @@ class MapApplication:
         # Check if rendering is enabled
         if self.menu_view.render_map_var.get():
             self.map_view.update_dynamic_visuals()
-            
+
         self.menu_view.update_stats()
         self._update_clock()
 
@@ -166,20 +167,21 @@ class MapApplication:
         # METEOROLOGIA
         if hasattr(self.simulator, "traffic_manager"):
             cond = self.simulator.traffic_manager.current_weather_condition
-            
+
             color = "#000000"
             icon = "☀"
-            if cond == "Nublado": 
+            if cond == "Nublado":
                 icon = "☁"
                 color = "#555555"
-            elif cond == "Chuva": 
+            elif cond == "Chuva":
                 icon = "🌧"
                 color = "#0066cc"
-            elif cond == "Tempestade": 
+            elif cond == "Tempestade":
                 icon = "⛈"
                 color = "#cc0000"
-                
+
             self.weather_label.config(text=f"{icon} {cond}", foreground=color)
+
 
 if __name__ == "__main__":
     root = tk.Tk()

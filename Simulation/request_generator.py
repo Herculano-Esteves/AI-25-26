@@ -26,8 +26,8 @@ class RequestGenerator:
         self.next_request_time: float = -1.0
 
         # Demand of requests
-        self.base_demand = 0.1
-        self.peak_multiplier = 0.4
+        self.base_demand = 0.2
+        self.peak_multiplier = 0.6
 
         # Prices per Km
         self.BASE_FARE = 2.50
@@ -36,12 +36,12 @@ class RequestGenerator:
     def reset(self):
         """Resets the generator state for a new simulation."""
         self.next_request_time = -1.0
-        # Re-seed if we want identical request patterns every time, 
-        # but maybe we want variance? 
+        # Re-seed if we want identical request patterns every time,
+        # but maybe we want variance?
         # The user asked for "benchmark", usually implies same workload.
         # The constructor sets seed=42 (or whatever passed).
         # We should probably re-seed to ensure fairness across algorithms.
-        self.rng = random.Random(42) 
+        self.rng = random.Random(42)
 
     def update(self, current_time: float, requests_list: List[Request]):
         """
@@ -176,7 +176,7 @@ class RequestGenerator:
             end_node = self.rng.choice(all_nodes)
             tries += 1
 
-        path_info = find_route('astar', self.city_map, start_node, end_node)
+        path_info = find_route("astar", self.city_map, start_node, end_node)
 
         if not path_info:
             return None
