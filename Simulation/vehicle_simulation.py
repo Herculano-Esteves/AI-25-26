@@ -103,6 +103,7 @@ def _update_continuous_movement(simulator: "Simulator", v: Vehicle, time_to_adva
                         simulator.requests_to_dropoff.remove(v.request)
                     simulator.requests.append(v.request)
                     v.request = None
+                    simulator.assignment_needed = True
 
                 time_remaining_in_tick = 0.0
                 break
@@ -155,6 +156,7 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
                 simulator.requests.append(v.request)
                 v.request = None
                 v.condition = VehicleCondition.AVAILABLE
+                simulator.assignment_needed = True
 
     elif v.condition == VehicleCondition.ON_TRIP_WITH_CLIENT:
         # Arrived at the client's destination
@@ -186,6 +188,7 @@ def _handle_route_arrival(simulator: "Simulator", v: Vehicle):
 
         v.condition = VehicleCondition.AVAILABLE
         v.request = None
+        simulator.assignment_needed = True
 
     elif v.condition == VehicleCondition.ON_WAY_TO_STATION:
         print(f"[Vehicle] {v.id} chegou à estação em {v.position_node.position}.")
@@ -206,6 +209,7 @@ def _manage_stopped_vehicle_state(simulator: "Simulator", v: Vehicle, time_to_ad
             v.condition = VehicleCondition.AVAILABLE
             v.remaining_km = simulator.LOW_AUTONOMY_THRESHOLD
             v.time_stopped = 0.0
+            simulator.assignment_needed = True
 
     elif v.condition == VehicleCondition.AVAILABLE:
         if v.remaining_km < simulator.LOW_AUTONOMY_THRESHOLD:
@@ -243,6 +247,7 @@ def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_adv
             v.remaining_km = v.max_km
             v.condition = VehicleCondition.AVAILABLE
             v.time_stopped = 0.0
+            simulator.assignment_needed = True
             print(f"[Vehicle] {v.id} (EV) carregamento completo.")
 
     else:
@@ -250,6 +255,7 @@ def _handle_refueling_at_station(simulator: "Simulator", v: Vehicle, time_to_adv
             v.remaining_km = v.max_km
             v.condition = VehicleCondition.AVAILABLE
             v.time_stopped = 0.0
+            simulator.assignment_needed = True
             print(f"[Vehicle] {v.id} (Gas) reabastecimento completo após 5 min.")
 
 

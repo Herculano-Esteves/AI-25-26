@@ -43,16 +43,18 @@ class RequestGenerator:
         # We should probably re-seed to ensure fairness across algorithms.
         self.rng = random.Random(42)
 
-    def update(self, current_time: float, requests_list: List[Request]):
+    def update(self, current_time: float, requests_list: List[Request]) -> bool:
         """
         Verifica se está na hora de criar um novo pedido.
         Se sim, cria-o e agenda o próximo.
+        Retorna True se um novo pedido foi criado.
         """
+        request_created = False
 
         if self.next_request_time < 0:
             # Creates the first request
             self.next_request_time = current_time + 0.1
-            return
+            return False
 
         while current_time >= self.next_request_time:
 
@@ -60,12 +62,15 @@ class RequestGenerator:
 
             if new_req:
                 requests_list.append(new_req)
+                request_created = True
                 hour = (self.next_request_time / 60.0) % 24
                 print(
                     f"[Generator] Novo Pedido {new_req.id} às {hour:.2f}h (Prio {new_req.priority}) - €{new_req.price:.2f}"
                 )
 
             self._schedule_next_request(self.next_request_time)
+        
+        return request_created
 
     def _schedule_next_request(self, last_time: float):
         """

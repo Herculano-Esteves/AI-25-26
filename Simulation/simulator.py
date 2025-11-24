@@ -85,6 +85,8 @@ class Simulator:
         if hasattr(self, "request_generator"):
             self.request_generator.reset()
 
+        self.assignment_needed = False
+
     def simulation_step(self, time_multiplier: float = 1.0):
         time_to_advance = self.SIM_TIME_PER_TICK * time_multiplier
 
@@ -95,7 +97,8 @@ class Simulator:
         self.hotspot_manager.update(current_hour)
 
         # O gerador verifica se passou tempo suficiente para um novo cliente ligar
-        self.request_generator.update(self.current_time, self.requests)
+        if self.request_generator.update(self.current_time, self.requests):
+            self.assignment_needed = True
 
         for v in self.vehicles:
             manage_vehicle(self, v, time_to_advance)
@@ -103,7 +106,9 @@ class Simulator:
         self._update_station_failures(time_to_advance)
 
         check_timeouts(self)
-        assign_pending_requests(self)
+        
+        if self.assignment_needed:
+            assign_pending_requests(self)
 
         self._calculate_step_stats(time_to_advance)
 

@@ -248,6 +248,7 @@ def check_timeouts(simulator: "Simulator"):
 
 
 def assign_pending_requests(simulator: "Simulator"):
+    simulator.assignment_needed = False
     pending_requests = simulator.requests
     if not pending_requests:
         return
