@@ -106,7 +106,7 @@ class Simulator:
         self._update_station_failures(time_to_advance)
 
         check_timeouts(self)
-        
+
         if self.assignment_needed:
             assign_pending_requests(self)
 

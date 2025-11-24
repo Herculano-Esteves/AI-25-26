@@ -13,6 +13,7 @@ class SAState:
     """
     Simples classe para guardar o estado da solução (atribuição e backlog).
     """
+
     def __init__(self, assignment: List[int], backlog: Set[int]):
         self.assignment = assignment
         self.backlog = backlog
@@ -30,7 +31,7 @@ def _calculate_backlog_penalty(request: Request, current_time: float) -> float:
 
     # A prioridade pesa bastante (ao quadrado)
     priority_cost = (request.priority**2) * PlanningConfig.WEIGHT_PRIORITY
-    
+
     # O tempo de espera também chateia, por isso penalizamos
     age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0
 
@@ -75,7 +76,7 @@ def get_neighbor(
     """
     for _ in range(3):  # Tentar 3x gerar válido
         new_state = state.copy()
-        
+
         # Vamos decidir o que fazer com base num número aleatório
         prob = random.random()
 
@@ -97,9 +98,9 @@ def get_neighbor(
         elif prob < 0.50 and busy_vehicles and free_vehicles:
             src_vehicle = random.choice(busy_vehicles)
             dst_vehicle = random.choice(free_vehicles)
-            
+
             request_idx = new_state.assignment[src_vehicle]
-            
+
             # Só movemos se o destino conseguir fazer o pedido
             if cost_matrix[dst_vehicle, request_idx] != float("inf"):
                 new_state.assignment[dst_vehicle] = request_idx
@@ -111,7 +112,7 @@ def get_neighbor(
             vehicle_idx = random.choice(busy_vehicles)
             new_req_idx = random.choice(list(new_state.backlog))
             old_req_idx = new_state.assignment[vehicle_idx]
-            
+
             if cost_matrix[vehicle_idx, new_req_idx] != float("inf"):
                 new_state.assignment[vehicle_idx] = new_req_idx
                 new_state.backlog.remove(new_req_idx)
@@ -122,7 +123,7 @@ def get_neighbor(
         elif free_vehicles and new_state.backlog:
             vehicle_idx = random.choice(free_vehicles)
             req_idx = random.choice(list(new_state.backlog))
-            
+
             if cost_matrix[vehicle_idx, req_idx] != float("inf"):
                 new_state.assignment[vehicle_idx] = req_idx
                 new_state.backlog.remove(req_idx)
@@ -134,7 +135,7 @@ def get_neighbor(
             if len(new_state.backlog) < num_vehicles * 3:
                 vehicle_idx = random.choice(busy_vehicles)
                 req_idx = new_state.assignment[vehicle_idx]
-                
+
                 # Proteção para pedidos VIP: é difícil removê-los (só 10% de chance)
                 is_vip = requests[req_idx].priority >= 4
                 if not is_vip or random.random() < 0.1:
@@ -165,9 +166,7 @@ def simulated_annealing_solver(
     backlog = set(range(num_requests))
 
     # Ordenamos pedidos por prioridade para tentar atender os VIPs primeiro
-    sorted_requests = sorted(
-        range(num_requests), key=lambda i: requests[i].priority, reverse=True
-    )
+    sorted_requests = sorted(range(num_requests), key=lambda i: requests[i].priority, reverse=True)
 
     for req_idx in sorted_requests:
         # Quem pode levar este pedido?
@@ -181,7 +180,7 @@ def simulated_annealing_solver(
             # Escolhemos o melhor candidato (menor custo) na maioria das vezes (80%)
             # Mas às vezes (20%) escolhemos um aleatório para dar variedade
             best_candidate = min(candidates, key=lambda v: cost_matrix[v, req_idx])
-            
+
             if random.random() < 0.8:
                 chosen_vehicle = best_candidate
             else:
@@ -234,7 +233,7 @@ def simulated_annealing_solver(
         if should_accept:
             current_state = neighbor
             current_energy = neighbor_energy
-            
+
             # Atualiza o melhor global se encontrarmos
             if current_energy < best_energy:
                 best_state = current_state.copy()
@@ -319,7 +318,7 @@ def hill_climbing_solver(
         for r in range(num_requests):
             if cost_matrix[v, r] != float("inf"):
                 possible_moves.append((cost_matrix[v, r], v, r))
-    
+
     possible_moves.sort(key=lambda x: x[0])
 
     for _, v, r in possible_moves:

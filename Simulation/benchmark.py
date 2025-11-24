@@ -117,7 +117,7 @@ class BenchmarkRunner:
         ]
 
         self.simulation_duration_hours = 24 * 7 * 2
-        self.ticks_to_run = self.simulation_duration_hours * 60
+        self.ticks_to_run = int((self.simulation_duration_hours * 60) / Simulator.SIM_TIME_PER_TICK)
 
     def start_benchmark(self):
         if self.is_running:

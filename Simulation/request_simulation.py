@@ -133,14 +133,14 @@ def _calculate_future_logistics_cost(
     """
     final_pos = request.end_node
 
-    # 1. & 2. Reabastecimento
+    # Reabastecimento
     dist_station = StrategyManager.get_dist_to_nearest_station(final_pos, vehicle.motor, simulator)
     if dist_station > remaining_km_after:
         return float("inf")  # Stranded
 
     refuel_cost = dist_station * PlanningConfig.WEIGHT_FUTURE_REFUEL
 
-    # 3. Isolamento (Hotspots)
+    # Isolamento (Hotspots)
     dist_hotspot = StrategyManager.get_dist_to_nearest_hotspot(final_pos, simulator)
     isolation_cost = dist_hotspot * PlanningConfig.WEIGHT_ISOLATION
 
@@ -188,15 +188,15 @@ def calculate_detailed_cost(
     """
     _, time_to_pickup, dist_to_pickup = path_info
 
-    # 1. Custos Base e Bónus
+    # Custos Base e Bónus
     cost = _calculate_base_time_cost(time_to_pickup)
     cost += _calculate_wait_time_bonus(request, simulator.current_time)
 
-    # 2. Penalizações de Compatibilidade
+    # Penalizações de Compatibilidade
     cost += _calculate_environmental_penalty(vehicle, request)
     cost += _calculate_capacity_penalty(vehicle, request)
 
-    # 3. Verificação de Autonomia e Risco
+    # Verificação de Autonomia e Risco
     total_trip_dist = dist_to_pickup + request.path_distance
     remaining_km_after = vehicle.remaining_km - total_trip_dist
 
@@ -205,16 +205,16 @@ def calculate_detailed_cost(
         return float("inf")
     cost += battery_risk
 
-    # 4. Logística Futura (Pós-Entrega)
+    # Logística Futura (Pós-Entrega)
     future_cost = _calculate_future_logistics_cost(vehicle, request, remaining_km_after, simulator)
     if future_cost == float("inf"):
         return float("inf")
     cost += future_cost
 
-    # 5. Custo de Oportunidade
+    # Custo de Oportunidade
     cost += _calculate_opportunity_cost(vehicle, request, has_eco_in_backlog)
 
-    # 6. Otimização de Lucro
+    # Otimização de Lucro
     cost += _calculate_profit_adjustment(vehicle, request, dist_to_pickup)
 
     return cost
@@ -249,18 +249,38 @@ def check_timeouts(simulator: "Simulator"):
 
 def assign_pending_requests(simulator: "Simulator"):
     simulator.assignment_needed = False
-    pending_requests = simulator.requests
-    if not pending_requests:
-        return
 
-    available_vehicles = [
+    # Gather all requests that need assignment
+    pending_requests = list(simulator.requests)
+
+    # Gather available vehicles AND vehicles on the way to pickup
+    available_vehicles = []
+
+    # Vehicles that are completely free
+    free_vehicles = [
         v
         for v in simulator.vehicles
         if v.condition == VehicleCondition.AVAILABLE
         and v.remaining_km >= simulator.LOW_AUTONOMY_THRESHOLD
     ]
+    available_vehicles.extend(free_vehicles)
 
-    if not available_vehicles:
+    # Vehicles that are busy but can be redirected
+    redirectable_vehicles = [
+        v
+        for v in simulator.vehicles
+        if v.condition == VehicleCondition.ON_WAY_TO_CLIENT
+        and v.remaining_km >= simulator.LOW_AUTONOMY_THRESHOLD
+    ]
+    available_vehicles.extend(redirectable_vehicles)
+
+    # Add the requests from redirectable vehicles to the pool
+    for v in redirectable_vehicles:
+        if v.request:
+            if v.request not in pending_requests:
+                pending_requests.append(v.request)
+
+    if not pending_requests or not available_vehicles:
         return
 
     # Inicializar Hotspots se necessário
@@ -298,6 +318,11 @@ def assign_pending_requests(simulator: "Simulator"):
 
             # Cálculo de Custo Estratégico
             cost = calculate_detailed_cost(v, req, path_info, simulator, has_eco)
+
+            # Small bonus for keeping the same assignment to avoid jitter
+            if v.request == req:
+                cost -= 5.0
+
             cost_matrix[i, j] = cost
 
     if np.all(cost_matrix == float("inf")):
@@ -313,28 +338,71 @@ def assign_pending_requests(simulator: "Simulator"):
         get_selected_assignment_algorithm(), simulator, cost_matrix, pending_requests, initial_temp
     )
 
-    assignments_to_make = []
+    # Identify vehicles that are changing tasks (or becoming free) and reset them
     for v_idx, r_idx in enumerate(final_assignment):
-        if r_idx != -1:
-            vehicle = available_vehicles[v_idx]
-            req = pending_requests[r_idx]
-            assignments_to_make.append((vehicle, req))
+        vehicle = available_vehicles[v_idx]
 
-    for v, r in assignments_to_make:
-        if r in simulator.requests and v.condition == VehicleCondition.AVAILABLE:
-            assign_request_to_vehicle(simulator, r, v)
+        # Determine the new request for this vehicle (or None)
+        new_req = None
+        if r_idx != -1:
+            new_req = pending_requests[r_idx]
+
+        # Check if vehicle needs to drop its current request
+        if vehicle.request:
+            # If it's a different request (or no request), we must unassign the old one
+            if vehicle.request != new_req:
+                old_req = vehicle.request
+                print(
+                    f"[Reassignment] {vehicle.id} dropping {old_req.id} (New: {new_req.id if new_req else 'None'})"
+                )
+
+                # Remove from pickup list safely
+                if old_req in simulator.requests_to_pickup:
+                    simulator.requests_to_pickup.remove(old_req)
+
+                # Add back to pending list if not already there
+                if old_req not in simulator.requests:
+                    simulator.requests.append(old_req)
+
+                # Reset vehicle state
+                vehicle.request = None
+                vehicle.condition = VehicleCondition.AVAILABLE
+                vehicle.current_route = []
+
+    # Apply new assignments
+    for v_idx, r_idx in enumerate(final_assignment):
+        vehicle = available_vehicles[v_idx]
+
+        if r_idx != -1:
+            new_req = pending_requests[r_idx]
+
+            if vehicle.request == new_req:
+                continue
+
+            assign_request_to_vehicle(simulator, new_req, vehicle)
+
+    # Check
+    for req in pending_requests:
+        # If req is not in pickup/dropoff/completed
+        is_active = req in simulator.requests_to_pickup or req in simulator.requests_to_dropoff
+
+        if not is_active and req not in simulator.requests:
+            simulator.requests.append(req)
 
 
 def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehicle):
+    # Remove from pending list if present
     if request in simulator.requests:
         simulator.requests.remove(request)
 
-    simulator.requests_to_pickup.append(request)
+    # Add to pickup list if not present
+    if request not in simulator.requests_to_pickup:
+        simulator.requests_to_pickup.append(request)
+
     v.request = request
     v.condition = VehicleCondition.ON_WAY_TO_CLIENT
 
     dist_str = f"{v.remaining_km:.0f}km"
-    print(f"[SA] {v.id} -> {request.id} (Prio {request.priority}). Bat: {dist_str}")
 
     path_info = find_route(
         get_selected_algorithm(),

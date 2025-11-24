@@ -69,7 +69,7 @@ class RequestGenerator:
                 )
 
             self._schedule_next_request(self.next_request_time)
-        
+
         return request_created
 
     def _schedule_next_request(self, last_time: float):
