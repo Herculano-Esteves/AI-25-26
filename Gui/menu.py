@@ -11,10 +11,10 @@ class MenuView:
         self.simulator = simulator
         self.speed_var = speed_var
         self.render_map_var = tk.BooleanVar(value=True)
-        
+
         self.stats_labels = {}
         self.benchmark_runner = None
-        
+
         self.frame = ttk.Frame(self.parent, width=450)
         self.frame.pack(fill=tk.BOTH, expand=True)
 
@@ -33,8 +33,19 @@ class MenuView:
         vehicle_tab = ttk.Frame(self.notebook)
         self.notebook.add(vehicle_tab, text="Frota")
 
-        cols = ("id", "status", "autonomy", "request", "motor", "capacidade", 
-                "co2", "station_time", "ocup_atual", "ocup_media", "avarias")
+        cols = (
+            "id",
+            "status",
+            "autonomy",
+            "request",
+            "motor",
+            "capacidade",
+            "co2",
+            "station_time",
+            "ocup_atual",
+            "ocup_media",
+            "avarias",
+        )
         self.vehicle_tree = ttk.Treeview(vehicle_tab, columns=cols, show="headings")
 
         headers = {
@@ -78,7 +89,9 @@ class MenuView:
             self.request_tree.heading(col, text=text)
             self.request_tree.column(col, width=width)
 
-        req_scrollbar = ttk.Scrollbar(request_tab, orient=tk.VERTICAL, command=self.request_tree.yview)
+        req_scrollbar = ttk.Scrollbar(
+            request_tab, orient=tk.VERTICAL, command=self.request_tree.yview
+        )
         self.request_tree.configure(yscrollcommand=req_scrollbar.set)
         req_scrollbar.pack(side=tk.RIGHT, fill=tk.Y)
         self.request_tree.pack(side=tk.LEFT, fill=tk.BOTH, expand=True)
@@ -96,7 +109,13 @@ class MenuView:
             nonlocal curr_row
             if header:
                 lbl = ttk.Label(stats_label_frame, text=label_text, font=("Arial", 11, "bold"))
-                lbl.grid(row=curr_row, column=0, columnspan=2, sticky=tk.W, pady=(10 if curr_row > 0 else 0, 5))
+                lbl.grid(
+                    row=curr_row,
+                    column=0,
+                    columnspan=2,
+                    sticky=tk.W,
+                    pady=(10 if curr_row > 0 else 0, 5),
+                )
                 self.stats_labels[key] = lbl
             else:
                 lbl_t = ttk.Label(stats_label_frame, text=label_text)
@@ -151,35 +170,42 @@ class MenuView:
 
         inner_frame.bind("<Configure>", update_scroll)
 
-        ttk.Label(inner_frame, text="Controlo da Simulação", font=("Arial", 12, "bold")).pack(pady=(10, 5), anchor=tk.W, padx=5)
+        ttk.Label(inner_frame, text="Controlo da Simulação", font=("Arial", 12, "bold")).pack(
+            pady=(10, 5), anchor=tk.W, padx=5
+        )
 
         speed_frame = ttk.LabelFrame(inner_frame, text="Velocidade do Tempo")
         speed_frame.pack(fill=tk.X, padx=10, pady=5)
 
         self.speed_scale = tk.Scale(
-            speed_frame, from_=0.1, to=10.0, orient=tk.HORIZONTAL,
-            variable=self.speed_var, resolution=0.1, label="Multiplicador (x)"
+            speed_frame,
+            from_=0.1,
+            to=10.0,
+            orient=tk.HORIZONTAL,
+            variable=self.speed_var,
+            resolution=0.1,
+            label="Multiplicador (x)",
         )
         self.speed_scale.pack(fill=tk.X, padx=5, pady=5)
-        
+
         # Algorithm Selection
         algo_frame = ttk.LabelFrame(inner_frame, text="Algoritmo de Rota")
         algo_frame.pack(fill=tk.X, padx=10, pady=5)
-        
+
         algo_options = ["A* (Informado)", "BFS (Não Informado)", "Greedy (Informado)"]
         self.algo_combo = ttk.Combobox(algo_frame, values=algo_options, state="readonly")
         self.algo_combo.set("A* (Informado)")
         self.algo_combo.pack(fill=tk.X, padx=5, pady=5)
-        
+
         def on_algo_change(event):
             selection = self.algo_combo.get()
-            key = 'astar'
+            key = "astar"
             if "BFS" in selection:
-                key = 'bfs'
+                key = "bfs"
             elif "Greedy" in selection:
-                key = 'greedy'
+                key = "greedy"
             set_selected_algorithm(key)
-            
+
         self.algo_combo.bind("<<ComboboxSelected>>", on_algo_change)
 
         # --- Assignment Algorithm Selection ---
@@ -197,19 +223,21 @@ class MenuView:
 
         self.assign_combo.bind("<<ComboboxSelected>>", on_assign_change)
 
-
-        
         # Benchmark Section
         bench_frame = ttk.LabelFrame(inner_frame, text="Benchmark Automático")
         bench_frame.pack(fill=tk.X, padx=10, pady=5)
-        
-        self.chk_render = ttk.Checkbutton(bench_frame, text="Renderizar Mapa (Mais lento)", variable=self.render_map_var)
+
+        self.chk_render = ttk.Checkbutton(
+            bench_frame, text="Renderizar Mapa (Mais lento)", variable=self.render_map_var
+        )
         self.chk_render.pack(anchor=tk.W, padx=5, pady=2)
-        
+
         self.lbl_bench_status = ttk.Label(bench_frame, text="Pronto", font=("Arial", 9, "italic"))
         self.lbl_bench_status.pack(anchor=tk.W, padx=5, pady=2)
-        
-        self.btn_bench = ttk.Button(bench_frame, text="Iniciar Benchmark (9 Testes)", command=self.start_benchmark_ui)
+
+        self.btn_bench = ttk.Button(
+            bench_frame, text="Iniciar Benchmark (9 Testes)", command=self.start_benchmark_ui
+        )
         self.btn_bench.pack(fill=tk.X, padx=5, pady=5)
 
     def start_benchmark_ui(self):
@@ -218,16 +246,17 @@ class MenuView:
 
         self.btn_bench.config(state=tk.DISABLED)
         self.lbl_bench_status.config(text="A iniciar...")
-        
+
         # Disable rendering if requested
         def on_update(msg):
             # Schedule UI update on main thread
             self.frame.after(0, lambda: self.lbl_bench_status.config(text=msg))
-            
+
         def on_complete():
             self.frame.after(0, lambda: self._on_benchmark_complete())
 
-        self.benchmark_runner = BenchmarkRunner(self.simulator, on_update, on_complete)
+        # CORREÇÃO AQUI: Removido self.simulator da chamada
+        self.benchmark_runner = BenchmarkRunner(on_update, on_complete)
         self.benchmark_runner.start_benchmark()
 
     def _on_benchmark_complete(self):
@@ -250,10 +279,19 @@ class MenuView:
                 status_str = "Quebrado"
 
             values = (
-                v.id, status_str, autonomy_str, request_id,
-                v.motor.name[0:4], v.passenger_capacity,
-                f"{v.co2_emitted:.2f}", f"{v.total_station_time:.1f}",
-                f"{(v.request.passenger_capacity / v.passenger_capacity * 100):.0f}%" if v.request else "0%",
+                v.id,
+                status_str,
+                autonomy_str,
+                request_id,
+                v.motor.name[0:4],
+                v.passenger_capacity,
+                f"{v.co2_emitted:.2f}",
+                f"{v.total_station_time:.1f}",
+                (
+                    f"{(v.request.passenger_capacity / v.passenger_capacity * 100):.0f}%"
+                    if v.request
+                    else "0%"
+                ),
                 f"{(v.sum_occupancy / v.total_trips * 100):.0f}%" if v.total_trips > 0 else "0%",
                 v.times_borken,
             )
@@ -266,10 +304,16 @@ class MenuView:
         def add_reqs(source_list, status_code):
             for r in source_list:
                 pref_str = "Sim" if r.environmental_preference else "-"
-                req_list.append((
-                    r.id, status_code, f"{r.start_node.position}", f"{r.end_node.position}",
-                    r.passenger_capacity, pref_str
-                ))
+                req_list.append(
+                    (
+                        r.id,
+                        status_code,
+                        f"{r.start_node.position}",
+                        f"{r.end_node.position}",
+                        r.passenger_capacity,
+                        pref_str,
+                    )
+                )
 
         add_reqs(self.simulator.requests, "Pendente")
         add_reqs(self.simulator.requests_to_pickup, "Apanhar")
@@ -289,7 +333,11 @@ class MenuView:
         labels["step_revenue"].config(text=f"€{stats.step_revenue_generated:,.2f}")
         labels["step_pending_req"].config(text=f"{stats.step_pending_requests}")
 
-        busy_vs = stats.step_vehicles_on_trip + stats.step_vehicles_charging + stats.step_vehicles_unavailable
+        busy_vs = (
+            stats.step_vehicles_on_trip
+            + stats.step_vehicles_charging
+            + stats.step_vehicles_unavailable
+        )
         labels["step_vehicles_busy"].config(text=f"{busy_vs}")
 
         labels["total_revenue"].config(text=f"€{stats.total_revenue_generated:,.2f}")
@@ -297,28 +345,52 @@ class MenuView:
         profit = stats.total_revenue_generated - stats.total_operational_cost
         labels["total_profit"].config(text=f"€{profit:,.2f}")
 
-        labels["total_requests"].config(text=f"{stats.total_requests_completed} / {stats.total_requests_failed}")
+        labels["total_requests"].config(
+            text=f"{stats.total_requests_completed} / {stats.total_requests_failed}"
+        )
         labels["timeout_cancels"].config(text=f"{stats.total_requests_cancelled_timeout}")
 
-        empty_ratio = (stats.total_kms_driven_empty / stats.total_kms_driven * 100) if stats.total_kms_driven > 0 else 0.0
+        empty_ratio = (
+            (stats.total_kms_driven_empty / stats.total_kms_driven * 100)
+            if stats.total_kms_driven > 0
+            else 0.0
+        )
         labels["kms_empty"].config(text=f"{empty_ratio:.1f}%")
 
-        ev_empty_ratio = (stats.total_kms_driven_empty_ev / stats.total_kms_driven_ev * 100) if stats.total_kms_driven_ev > 0 else 0.0
+        ev_empty_ratio = (
+            (stats.total_kms_driven_empty_ev / stats.total_kms_driven_ev * 100)
+            if stats.total_kms_driven_ev > 0
+            else 0.0
+        )
         labels["kms_empty_ev"].config(text=f"{ev_empty_ratio:.1f}%")
 
-        gas_empty_ratio = (stats.total_kms_driven_empty_gas / stats.total_kms_driven_gas * 100) if stats.total_kms_driven_gas > 0 else 0.0
+        gas_empty_ratio = (
+            (stats.total_kms_driven_empty_gas / stats.total_kms_driven_gas * 100)
+            if stats.total_kms_driven_gas > 0
+            else 0.0
+        )
         labels["kms_empty_gas"].config(text=f"{gas_empty_ratio:.1f}%")
 
         labels["total_co2"].config(text=f"{stats.total_co2_emitted:.2f} kg")
-        labels["loss_time_ev_gas"].config(text=f"{stats.total_station_time_ev:.1f}m vs {stats.total_station_time_gas:.1f}m")
+        labels["loss_time_ev_gas"].config(
+            text=f"{stats.total_station_time_ev:.1f}m vs {stats.total_station_time_gas:.1f}m"
+        )
 
-        avg_wait = (stats.total_wait_time_for_pickup / stats.total_requests_picked_up) if stats.total_requests_picked_up > 0 else 0.0
+        avg_wait = (
+            (stats.total_wait_time_for_pickup / stats.total_requests_picked_up)
+            if stats.total_requests_picked_up > 0
+            else 0.0
+        )
         labels["avg_wait_time"].config(text=f"{avg_wait:.1f} min")
 
         min_wait = 0.0 if stats.min_wait_time == float("inf") else stats.min_wait_time
         labels["range_wait_time"].config(text=f"{min_wait:.1f} - {stats.max_wait_time:.1f}")
 
-        avg_trip = (stats.total_time_for_completed_requests / stats.total_requests_completed) if stats.total_requests_completed > 0 else 0.0
+        avg_trip = (
+            (stats.total_time_for_completed_requests / stats.total_requests_completed)
+            if stats.total_requests_completed > 0
+            else 0.0
+        )
         labels["avg_trip_time"].config(text=f"{avg_trip:.1f} min")
 
         min_trip = 0.0 if stats.min_total_trip_time == float("inf") else stats.min_total_trip_time
