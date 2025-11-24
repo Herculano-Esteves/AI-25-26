@@ -1,6 +1,6 @@
 import tkinter as tk
 from tkinter import ttk
-from Simulation.request_simulation import set_selected_algorithm, set_selected_assignment_algorithm
+from Simulation.request_simulation import set_selected_algorithm, set_selected_assignment_algorithm, set_selected_cost_estimation_algorithm
 from Simulation.simulation_config import PlanningConfig
 from Simulation.benchmark import BenchmarkRunner
 
@@ -222,6 +222,24 @@ class MenuView:
             set_selected_assignment_algorithm(selection)
 
         self.assign_combo.bind("<<ComboboxSelected>>", on_assign_change)
+
+        # Cost Estimation Algorithm Selection
+        cost_est_frame = ttk.LabelFrame(inner_frame, text="Estimativa de Custo (Atribuição)")
+        cost_est_frame.pack(fill=tk.X, padx=10, pady=5)
+
+        cost_est_options = ["Heurística (Rápido)", "A* (Preciso)"]
+        self.cost_est_combo = ttk.Combobox(cost_est_frame, values=cost_est_options, state="readonly")
+        self.cost_est_combo.set("Heurística (Rápido)")
+        self.cost_est_combo.pack(fill=tk.X, padx=5, pady=5)
+
+        def on_cost_est_change(event):
+            selection = self.cost_est_combo.get()
+            key = "heuristic"
+            if "A*" in selection:
+                key = "astar"
+            set_selected_cost_estimation_algorithm(key)
+
+        self.cost_est_combo.bind("<<ComboboxSelected>>", on_cost_est_change)
 
         # Benchmark Section
         bench_frame = ttk.LabelFrame(inner_frame, text="Benchmark Automático")

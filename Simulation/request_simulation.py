@@ -1,7 +1,7 @@
 from typing import List, TYPE_CHECKING, Tuple, Set, Optional
 from models.request import Request
 from models.vehicle import Vehicle, VehicleCondition, Motor
-from search_algorithms import find_route, _heuristic_distance
+from search_algorithms import find_route, _heuristic_distance, haversine_km, calculate_time_minutes
 from models.node import Node
 import random
 import math
@@ -26,6 +26,10 @@ _selected_algorithm = "astar"
 # Opções: 'simulated annealing', 'greedy', 'hill climbing'
 _selected_assignment_algorithm = "simulated annealing"
 
+# Configuração do Algoritmo de Estimativa de Custo (Assignment Cost)
+# Opções: 'heuristic', 'astar'
+_selected_cost_estimation_algorithm = "heuristic"
+
 
 def get_selected_algorithm() -> str:
     return _selected_algorithm
@@ -45,6 +49,36 @@ def set_selected_assignment_algorithm(algo: str):
     global _selected_assignment_algorithm
     _selected_assignment_algorithm = algo
     print(f"[Config] Algoritmo de atribuição alterado para: {algo}")
+
+
+def get_selected_cost_estimation_algorithm() -> str:
+    return _selected_cost_estimation_algorithm
+
+
+def set_selected_cost_estimation_algorithm(algo: str):
+    global _selected_cost_estimation_algorithm
+    _selected_cost_estimation_algorithm = algo
+    print(f"[Config] Algoritmo de estimativa de custo alterado para: {algo}")
+
+
+def estimate_route_info(
+    start_node: Node, end_node: Node, average_speed_kmh: float = 50.0
+) -> Tuple[List[Node], float, float]:
+    """
+    Estima o tempo e distância entre dois nós usando distância de Haversine
+    e uma velocidade média conservadora.
+    Retorna: (path_ficticio, tempo_minutos, distancia_km)
+    """
+    dist_km = haversine_km(
+        start_node.position[0],
+        start_node.position[1],
+        end_node.position[0],
+        end_node.position[1],
+    )
+    time_min = calculate_time_minutes(dist_km, average_speed_kmh)
+    
+    # Retornamos uma lista vazia como path, pois não calculamos a rota real
+    return [], time_min, dist_km
 
 
 class StrategyManager:
@@ -304,15 +338,22 @@ def assign_pending_requests(simulator: "Simulator"):
             if v.passenger_capacity < req.passenger_capacity:
                 continue
 
-            # Pathfinding (A*)
-            path_info = find_route(
-                get_selected_algorithm(),
-                simulator.map,
-                v.position_node,
-                req.start_node,
-                current_time=simulator.current_time,
-                traffic_manager=simulator.traffic_manager,
-            )
+            # Pathfinding (A*) or Heuristic
+            path_info = None
+            
+            if get_selected_cost_estimation_algorithm() == "heuristic":
+                path_info = estimate_route_info(v.position_node, req.start_node)
+            else:
+                # Fallback to full A*
+                path_info = find_route(
+                    get_selected_algorithm(),
+                    simulator.map,
+                    v.position_node,
+                    req.start_node,
+                    current_time=simulator.current_time,
+                    traffic_manager=simulator.traffic_manager,
+                )
+
             if not path_info:
                 continue
 
@@ -412,6 +453,7 @@ def assign_request_to_vehicle(simulator: "Simulator", request: Request, v: Vehic
         current_time=simulator.current_time,
         traffic_manager=simulator.traffic_manager,
     )
+
     if path_info:
         path, _, _ = path_info
         v.current_route = path
