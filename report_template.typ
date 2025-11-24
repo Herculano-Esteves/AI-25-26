@@ -16,7 +16,7 @@
 
 = Avaliação pelos Pares
 
-Conforme exigido, apresenta-se a distribuição do esforço e contribuição de cada membro do grupo para a realização deste trabalho. A soma dos deltas é igual a 0.
+Distribuição do esforço e contribuição de cada membro do grupo para a realização deste trabalho.
 
 #figure(
   table(
@@ -122,11 +122,11 @@ Ao contrário de um problema de navegação simples (resolvido via A\*), o desaf
 
 Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, onde:
 
-- **A (Matriz de Atribuições)**: Um mapeamento $V -> R union {emptyset}$, onde $V$ é o conjunto de todos os veículos da frota e $R$ é o conjunto de pedidos ativos. Se $A[v] = r$, significa que o veículo $v$ está a servir o pedido $r$. Se $A[v] = emptyset$, o veículo está livre.
-- **B (Backlog/Fila de Espera)**: O conjunto de pedidos pendentes $R_"pend"$ que foram recebidos mas ainda não foram atribuídos a nenhum veículo.
+- **A (Atribuições)**: Um mapeamento $V -> R union {emptyset}$, onde $V$ é o conjunto de todos os veículos da frota e $R$ é o conjunto de pedidos ativos. Se $A[v] = r$, significa que o veículo $v$ está a servir o pedido $r$. Se $A[v] = emptyset$, o veículo está livre.
+- **B (Backlog/Fila de Espera)**: O conjunto de pedidos pendentes $R_"pendentes"$ que foram recebidos mas ainda não foram atribuídos a nenhum veículo.
 - **V (Estado Projetado da Frota)**: Um vetor contendo o estado futuro estimado de cada veículo $v in V$ após cumprir a atribuição atual. Para cada veículo, projeta-se:
-  - $"Pos"_"final"$: Localização após a entrega.
-  - $"Bat"_"final"$: Autonomia restante estimada após a entrega.
+  - $"Posição"_"final"$: Localização após a entrega.
+  - $"Autonomia"_"final"$: Autonomia restante estimada após a entrega.
   - $"Tempo"_"livre"$: Instante de tempo simulado em que o veículo ficará novamente disponível.
 
 #figure(
@@ -190,8 +190,8 @@ O algoritmo de procura não é executado apenas uma vez. O sistema opera em regi
 - Um veículo torna-se disponível (termina viagem ou recarga).
 - Falha de uma infraestrutura (ex: estação de recarga avariada).
 - **Timeouts Escalonados**: O tempo máximo de espera depende da prioridade do cliente.
-  - Clientes normais (Prio 1) esperam até **30 minutos**.
-  - Clientes VIP (Prio 5) cancelam o pedido após apenas **10 minutos**.
+  - Clientes normais (Prioridade 1) esperam até **30 minutos**.
+  - Clientes VIP (Prioridade 5) cancelam o pedido após apenas **10 minutos**.
   - Fórmula: $"Timeout" = 30 - (("Prio" - 1) times 5)$.
   - O cancelamento gera uma penalização financeira e conta como "Pedido Falhado".
 
@@ -234,6 +234,7 @@ A frota é heterogénea, composta por veículos com atributos distintos que infl
   - `id`: Identificador único.
   - `capacity`: Capacidade de passageiros (1 a 7 lugares).
   - `condition`: Estado atual (Disponível, Em Viagem, A Carregar, etc.).
+  - **Falha Crítica**: Se um veículo ficar sem autonomia (`remaining_km <= 0`) durante uma viagem, entra em estado `UNAVAILABLE`, o pedido atual é cancelado (com penalização financeira) e o veículo fica inoperacional até ser "rebocado" (reset manual ou fim da simulação).
 - **Veículos a Combustão**:
   - Alta autonomia (600 - 900 km) e reabastecimento rápido (5 min).
   - Custo operacional elevado (combustível + manutenção).
@@ -242,7 +243,7 @@ A frota é heterogénea, composta por veículos com atributos distintos que infl
   - Autonomia limitada (200 - 420 km) e tempos de recarga variáveis.
   - Custo por km muito reduzido (eletricidade).
   - Zero emissões locais, mas requerem gestão cuidadosa de bateria (são penalizados se a carga baixar de 20%).
-  - **Falha Crítica**: Se um veículo ficar sem autonomia (`remaining_km <= 0`) durante uma viagem, entra em estado `UNAVAILABLE`, o pedido atual é cancelado (com penalização financeira) e o veículo fica inoperacional até ser "rebocado" (reset manual ou fim da simulação).
+
 
 = Algoritmos Desenvolvidos
 
@@ -269,7 +270,7 @@ Para mover os veículos no mapa, implementamos três estratégias:
     stroke: 0.5pt + gray,
     fill: (row, col) => if row == 0 { luma(230) } else { white },
     [*Algoritmo*], [*Complexidade Temporal*], [*Complexidade Espacial*], [*Ótimo?*],
-    [BFS], [$O(b^d)$], [$O(b^d)$], [Não (em grafos ponderados)],
+    [BFS], [$O(b^d)$], [$O(b^d)$], [Não],
     [Greedy], [$O(b^m)$], [$O(b^m)$], [Não],
     [A\*], [$O(b^d)$], [$O(b^d)$], [Sim (com heurística admissível)],
   ),
