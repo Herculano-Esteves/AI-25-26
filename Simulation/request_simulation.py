@@ -13,7 +13,7 @@ if TYPE_CHECKING:
 
 BASE_TIMEOUT_MINUTES = 30.0
 TIMEOUT_REDUCTION_PER_PRIORITY = 5.0
-CANCELLATION_PENALTY_EUR = 3.0  # Fee for client lost
+
 
 from Simulation.simulation_config import PlanningConfig
 from Simulation.assignment_algorithms import solve_assignment
@@ -277,7 +277,7 @@ def check_timeouts(simulator: "Simulator"):
             simulator.requests.pop(i)
 
             simulator.stats.step_requests_cancelled_timeout += 1
-            simulator.stats.step_operational_cost += CANCELLATION_PENALTY_EUR
+
             simulator.stats.total_requests_failed += 1
 
 

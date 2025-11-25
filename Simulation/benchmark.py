@@ -116,7 +116,7 @@ class BenchmarkRunner:
             ("greedy", "hill climbing"),
         ]
 
-        self.simulation_duration_hours = 24 * 7 * 2
+        self.simulation_duration_hours = 24 * 7 * 4
         self.ticks_to_run = int((self.simulation_duration_hours * 60) / Simulator.SIM_TIME_PER_TICK)
 
     def start_benchmark(self):
