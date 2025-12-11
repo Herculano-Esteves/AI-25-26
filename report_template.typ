@@ -100,7 +100,7 @@ Este relatório apresenta as informações relativas ao projeto da Unidade Curri
 
 O objetivo foi desenvolver algoritmos de procura que permitam otimizar a gestão de uma frota de táxis heterogénea, composta por veículos a combustão e elétricos, garantindo a eficiência operacional, a redução de custos energéticos e o cumprimento de critérios ambientais. 
 
-A solução implementada utiliza técnicas avançadas de Inteligência Artificial, nomeadamente algoritmos de procura informada (A\*) e algoritmos de otimização local estocástica (Simulated Annealing) para resolver o problema de despacho de veículos em tempo real.
+A solução implementada utiliza algoritmos lecionados na cadeira de Inteligência Artificial, nomeadamente algoritmos de procura informada (A\*) e algoritmos de otimização local estocástica (Simulated Annealing) para resolver o problema de atribuição de veículos e pedidos em tempo real.
 
 == Objetivos
 O objetivo principal é desenvolver e comparar algoritmos de procura e otimização para:
@@ -113,14 +113,14 @@ O objetivo principal é desenvolver e comparar algoritmos de procura e otimizaç
 
 A *TaxiGreen* é uma empresa moderna de transporte urbano que enfrenta um desafio complexo: gerir uma frota mista de veículos (elétricos e a combustão) numa cidade movimentada como Braga. O objetivo não é apenas levar passageiros do ponto A ao ponto B, mas fazê-lo da forma mais eficiente e sustentável possível.
 
-Pedidos de transporte são requisitados consoante a hora do dia, com origem em diferentes partes da cidade.  Podem requisitar ser atendidos rapidamente, como também optar por uma viagem ecológica. A empresa tem à sua disposição carros elétricos (baratos de operar, mas com autonomia limitada e de recarga demorada) e carros a combustão (rápidos de abastecer, mas caros e poluentes).
+Pedidos de transporte são requisitados consoante a hora do dia, com origem e destino em diferentes partes da cidade.  Podem requisitar ser atendidos rapidamente, como também optar por uma viagem ecológica. A empresa tem à sua disposição carros elétricos (baratos de operar, mas com autonomia limitada e recarga demorada) e carros a combustão (rápidos de abastecer, mas caros e poluentes).
 
-O nosso trabalho é criar o programa para gerir esta operação. Um sistema inteligente que decide, em tempo real:
+O nosso trabalho é criar um programa para gerir esta operação. Um sistema inteligente que decide, em tempo real:
 1.  Que veículo deve atender qual pedido?
 2.  Qual o melhor caminho para lá chegar, fugindo ao trânsito?
 3.  Quando é que um carro elétrico deve parar para carregar antes que fique sem bateria?
 
-Para resolver isto, transformamos a cidade num **Grafo** (uma rede de nós e conexões) obtido através do _OSMnx_ e utilizamos algoritmos de Inteligência Artificial para encontrar as melhores soluções de navegação e atribuição.
+Para resolver isto, transformamos a cidade num **Grafo** (uma rede de nós e arestas) obtido através do _OSMnx_ e utilizamos algoritmos de Inteligência Artificial para encontrar as melhores soluções de rota e atribuição.
 
 = Formulação do Problema
 
@@ -132,8 +132,8 @@ Ao contrário de um problema de navegação simples (resolvido via A\*), o desaf
 
 Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, onde:
 
-- **A (Atribuições)**: Um mapeamento $V -> R union {emptyset}$, onde $V$ é o conjunto de todos os veículos da frota e $R$ é o conjunto de pedidos ativos. Se $A[v] = r$, significa que o veículo $v$ está a servir o pedido $r$. Se $A[v] = emptyset$, o veículo está livre.
-- **B (Backlog/Fila de Espera)**: O conjunto de pedidos pendentes $R_"pendentes"$ que foram recebidos mas ainda não foram atribuídos a nenhum veículo.
+- **A (Atribuições)**: Um mapeamento $V -> R union {emptyset}$, onde $V$ é o conjunto de todos os veículos da frota e $R$ é o conjunto de pedidos por recolher. Se $A[v] = r$, significa que o veículo $v$ está a servir o pedido $r$. Se $A[v] = emptyset$, o veículo está livre.
+- **B (Backlog/Fila de Espera)**: O conjunto de pedidos pendentes $R_"pendentes"$ que foram recebidos mas ainda não foram recolhidos por nenhum veículo.
 - **V (Estado Projetado da Frota)**: Um vetor contendo o estado futuro estimado de cada veículo $v in V$ após cumprir a atribuição atual. Para cada veículo, projeta-se:
   - $"Posição"_"final"$: Localização após a entrega.
   - $"Autonomia"_"final"$: Autonomia restante estimada após a entrega.
@@ -143,13 +143,13 @@ Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, 
 
 == Operadores (Espaço de Ações)
 
-Para navegar no espaço de estados e encontrar soluções melhores, definimos cinco operadores de transição que modificam o estado $S$ para gerar um estado vizinho $S'$:
+Para navegar no espaço de estados e encontrar soluções melhores, definimos cinco operadores que modificam o estado $S$ para gerar um estado vizinho $S'$:
 
 1.  **Assign(v, r)**: Retira um pedido $r$ do Backlog ($B$) e atribui-o a um veículo livre $v$.
-2.  **Unassign(v)**: Remove a atribuição atual de um veículo $v$, devolvendo o pedido ao Backlog ($B$). Útil para libertar veículos para pedidos mais prioritários que possam surgir.
+2.  **Unassign(v)**: Remove a atribuição atual de um veículo $v$, devolvendo o pedido ao Backlog ($B$). Útil para tornar veículos disponíveis de forma a conseguirem ser atribuidos a pedidos com uma prioridade superior que possam surgir.
 3.  **Swap(v1, v2)**: Troca os pedidos atribuídos entre dois veículos $v_1$ e $v_2$. Este operador permite otimizar a frota trocando, por exemplo, um pedido de curta distância de um veículo a combustão para um elétrico, e vice-versa.
 4.  **Move(v_src, v_dst)**: Move um pedido de um veículo ocupado para um livre.
-5.  **Replace(v, r_new)**: Substitui o pedido atual de um veículo por um do backlog (útil se o novo for muito mais prioritário).
+5.  **Replace(v, r_new)**: Substitui o pedido atual de um veículo por um do backlog.
 
 == Teste Objetivo e Função de Custo (E)
 
@@ -182,11 +182,11 @@ Onde:
 - $C_"op"(v)$ (**Custo Operacional**): Inclui o tempo de viagem (calculado via A\*), distância percorrida e o custo monetário da energia (mais baixo para EVs, mais alto para combustão).
 - $C_"espera"(r)$ (**Penalização de Backlog**): Custo elevado para pedidos que ficam na fila, ponderado pela sua prioridade ($"Prio"$) e tempo de espera acumulado ($"Age"$).
   - Fórmula: $K_"base" times "Prio" times (1 + "Age")$.
-- $P_"viabilidade"$ (**Penalizações**): Um valor proibitivo ($infinity$) aplicado se o estado projetado $V$ violar restrições "duras" (ex: autonomia final < 0 ou capacidade de passageiros insuficiente).
+- $P_"viabilidade"$ (**Penalizações**): Um valor proibitivo ($infinity$) aplicado se o estado projetado $V$ não cumprir as restrições (ex: autonomia final < 0 ou capacidade de passageiros insuficiente).
 
 == Dinâmica de Execução
 
-O algoritmo de procura não é executado apenas uma vez. O sistema opera em regime de **Planeamento Contínuo (Replanning)**. O processo de procura é reiniciado sempre que ocorre um evento significativo no ambiente:
+O algoritmo de procura não é executado apenas uma vez. O sistema opera com um planeamento contínuo podendo alterar decisões anteriores de acordo com novos pedidos ou alterações dinâmicas (ex: trocar pedidos já atribuídos a veículos ). O processo de procura é reiniciado sempre que ocorre um evento significativo no ambiente:
 - Chegada de um novo pedido de cliente.
 - Um veículo torna-se disponível (termina viagem ou recarga).
 - Falha de uma infraestrutura (ex: estação de recarga avariada).
@@ -274,14 +274,16 @@ Um sistema de clima dinâmico que afeta globalmente a velocidade dos veículos:
 A transição entre estados meteorológicos é feita através de Ruído de Perlin 1D sobre o tempo, garantindo mudanças suaves e realistas.
 
 === Hotspots (Zonas de Alta Densidade)
-A distribuição de pedidos não é uniforme. Implementamos um sistema de **Hotspots** que modela zonas de alta procura:
+A distribuição de pedidos não é uniforme. Implementamos um sistema de **18 Hotspots** que modela zonas de alta procura na cidade de Braga:
 
-**Principais Hotspots**:
-- Universidade do Minho (ativa 07:00-23:00, peso 3.0)
-- Estação de Comboios (ativa 06:00-22:00, peso 2.5)
-- Braga Parque (ativa 09:00-22:00, peso 2.0)
-- Hospital de Braga (ativa 24h, peso 1.5)
-- Centro Histórico (ativa 09:00-01:00, peso 2.0)
+**Principais Hotspots (por categoria)**:
+- *Educação*: Universidade do Minho (peso 2.0), Escola Sá de Miranda (peso 1.1), Colégio D. Diogo de Sousa (peso 1.0)
+- *Transportes*: Estação CP (peso 1.6, ativa 06-09h, 16-20h, 21-23h)
+- *Comercial*: Braga Parque (peso 2.2), Nova Arcada (peso 1.8), Minho Center (peso 1.3)
+- *Saúde*: Hospital de Braga (peso 1.9, ativa 24h)
+- *Lazer*: Centro Histórico (peso 2.0), Bares da Sé (peso 2.3, ativa 20-04h), Altice Fórum (peso 3.0), Estádio Municipal (peso 3.5)
+- *Tecnologia*: INL - Nanotecnologia (peso 1.4)
+- *Industrial*: Parque Industrial (peso 1.6)
 
 **Padrões de Geração de Pedidos**:
 - 40%: Hotspot → Destino Aleatório
@@ -289,7 +291,7 @@ A distribuição de pedidos não é uniforme. Implementamos um sistema de **Hots
 - 20%: Hotspot → Hotspot
 - 10%: Aleatório → Aleatório
 
-Este sistema garante que os pedidos se concentram em zonas realistas (universidades de manhã, centro à noite, etc.).
+Este sistema garante que os pedidos se concentram em zonas realistas (universidades de manhã, bares à noite, hospital 24h, etc.).
 
 === Falhas de Infraestrutura
 As estações de carregamento (EV) e de abastecimento (combustão) podem falhar estocasticamente:
@@ -304,8 +306,8 @@ A frota é heterogénea, composta por veículos com atributos distintos. A confi
 - **Quantidade**: 5 veículos (frota fixa)
 - **Autonomia**: Entre 600-900 km
 - **Tempo de Reabastecimento**: 5 minutos
-- **Custo Operacional**: €0.15/km (combustível + manutenção)
-- **Emissões**: ~120g CO₂/km
+- **Custo Operacional**: €0.12/km (combustível + manutenção)
+- **Emissões**: 87g CO₂/km (fonte: ACP Portugal, média nacional 2024)
 - **Vantagens**: Alta autonomia, reabastecimento rápido
 - **Desvantagens**: Custo elevado, poluente
 
@@ -381,12 +383,29 @@ O problema de atribuir $N$ veículos a $M$ pedidos é combinatório.
 3.  **Simulated Annealing**:
     -  *Como funciona?*: Algoritmo de otimização estocástica inspirado no processo físico de recozimento de metais. No início (alta temperatura) aceita soluções piores probabilisticamente para explorar o espaço. À medida que "arrefece", foca-se em melhorar a solução.
     - *Parâmetros Implementados*:
-      - Temperatura Inicial ($T_0$): 200.0
-      - Fator de Arrefecimento ($alpha$): 0.96
+      - Temperatura Inicial ($T_0$): 250.0 (aumenta para 450.0 quando há pedidos VIP ou sobrecarga)
+      - Fator de Arrefecimento ($alpha$): 0.95
       - Critério de Aceitação: $P("aceitar") = e^(-Delta E / T)$
       - Operadores de Vizinhança: Assign, Unassign, Swap, Move, Replace
     - *Vantagem*: Escapa aos mínimos locais, encontrando soluções globais melhores para a gestão da frota a longo prazo.
     - *Desvantagem*: Mais lento que greedy, requer afinação de parâmetros.
+
+=== Justificação das Escolhas de Design
+
+A escolha do **Simulated Annealing** como algoritmo principal de atribuição resultou de uma análise cuidadosa das características do problema:
+
+1. **Espaço de Estados Discreto e Combinatório**: O problema de atribuir $N$ veículos a $M$ pedidos gera um espaço de $(M+1)^N$ estados possíveis. Para 10 veículos e 20 pedidos, isto ultrapassa $10^{13}$ combinações, tornando a procura exaustiva impraticável.
+
+2. **Paisagem de Custos Multimodal**: A função de custo do nosso problema possui múltiplos mínimos locais devido às interações entre restrições (autonomia, capacidade, preferências ecológicas). Algoritmos puramente greedy ou hill climbing ficam facilmente presos nestas "armadilhas".
+
+3. **Natureza Dinâmica do Problema**: Como novos pedidos chegam continuamente e o estado dos veículos muda (bateria, posição), o algoritmo é re-executado frequentemente. O SA adapta-se bem a este contexto porque cada execução parte de uma solução inicial diferente (estado atual), beneficiando da exploração aleatória inicial.
+
+4. **Compromisso Tempo-Qualidade**: Comparado com algoritmos exatos (ex: Branch and Bound), o SA oferece soluções de alta qualidade em tempo previsível. O parâmetro de temperatura dinâmica ($T_0 = 250$ ou $450$ para VIPs) permite ajustar automaticamente a exploração conforme a urgência.
+
+5. **Alternativas Consideradas**:
+   - *Algoritmo Húngaro*: Ótimo mas $O(n^3)$ e não lida bem com restrições complexas (autonomia, preferências).
+   - *Programação Linear Inteira*: Garantia de optimalidade mas demasiado lento para decisões em tempo real.
+   - *Algoritmos Genéticos*: Bons para otimização global mas requerem populações grandes e mais tempo de convergência.
 
 == Otimização da Atribuição de Pedidos (Lógica de Despacho)
 
