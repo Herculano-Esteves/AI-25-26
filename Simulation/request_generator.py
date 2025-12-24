@@ -3,7 +3,7 @@ import math
 import numpy as np
 from typing import List, Optional, TYPE_CHECKING
 from models.request import Request
-from search_algorithms import find_route, _heuristic_distance
+from Simulation.search_algorithms import find_route, _heuristic_distance
 
 if TYPE_CHECKING:
     from graph import CityGraph

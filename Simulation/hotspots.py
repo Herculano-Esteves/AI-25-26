@@ -1,7 +1,7 @@
 from typing import List, Tuple, Optional
 from models.node import Node
 from graph import CityGraph
-from search_algorithms import haversine_km, _heuristic_distance
+from Simulation.search_algorithms import haversine_km, _heuristic_distance
 import random
 
 

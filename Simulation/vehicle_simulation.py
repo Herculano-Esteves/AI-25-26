@@ -1,4 +1,4 @@
-from search_algorithms import find_route, _heuristic_distance
+from Simulation.search_algorithms import find_route, _heuristic_distance
 from models.vehicle import Vehicle, VehicleCondition, Motor
 from models.node import Node
 from typing import TYPE_CHECKING

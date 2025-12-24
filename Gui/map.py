@@ -24,7 +24,7 @@ class MapView:
     DEBUG_TEXT_COLOR = "yellow"
 
     # Drawing constants
-    SPRITE_SIZE_PX = 18
+    SPRITE_SIZE_PX = 22
     REQUEST_FONT = ("Arial", 20)
     KM_PER_DEGREE_LAT = 130
 
@@ -276,21 +276,36 @@ class MapView:
         sprite_gas = self.sprite_cache.get("gas")
         sprite_ev = self.sprite_cache.get("ev")
 
-        if hasattr(self.simulator.map, "gas_stations") and sprite_gas:
-            for node in self.simulator.map.gas_stations:
-                x, y = self._world_to_canvas(*node.position)
-                if not (
-                    x < -margin or x > c_width + margin or y < -margin or y > c_height + margin
-                ):
-                    self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
+        all_station_nodes = set()
+        if hasattr(self.simulator.map, "gas_stations"):
+            all_station_nodes.update(self.simulator.map.gas_stations)
+        if hasattr(self.simulator.map, "ev_stations"):
+            all_station_nodes.update(self.simulator.map.ev_stations)
 
-        if hasattr(self.simulator.map, "ev_stations") and sprite_ev:
-            for node in self.simulator.map.ev_stations:
-                x, y = self._world_to_canvas(*node.position)
-                if not (
-                    x < -margin or x > c_width + margin or y < -margin or y > c_height + margin
-                ):
-                    self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
+        for node in all_station_nodes:
+            x, y = self._world_to_canvas(*node.position)
+            if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
+                continue
+            
+            has_gas = node.gas_pumps > 0
+            has_ev = node.energy_chargers > 0
+            
+            if has_gas and has_ev:
+                offset = self.SPRITE_SIZE_PX * 0.6
+                if sprite_gas:
+                    self.canvas.create_image(
+                        x - offset, y, image=sprite_gas, tags=("no", "posto_gas")
+                    )
+                if sprite_ev:
+                    self.canvas.create_image(
+                        x + offset, y, image=sprite_ev, tags=("no", "posto_ev")
+                    )
+            elif has_gas and sprite_gas:
+                # Gas-only station: centered
+                self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
+            elif has_ev and sprite_ev:
+                # EV-only station: centered
+                self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
 
     def _draw_station_overlays(self):
         self.canvas.delete("falha_overlay")

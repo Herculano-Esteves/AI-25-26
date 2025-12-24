@@ -1,7 +1,7 @@
 from typing import List, TYPE_CHECKING, Tuple, Set, Optional
 from models.request import Request
 from models.vehicle import Vehicle, VehicleCondition, Motor
-from search_algorithms import find_route, _heuristic_distance, haversine_km, calculate_time_minutes
+from Simulation.search_algorithms import find_route, _heuristic_distance, haversine_km, calculate_time_minutes
 from models.node import Node
 import random
 import math
