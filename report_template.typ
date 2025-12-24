@@ -121,6 +121,10 @@ O nosso trabalho é criar um programa para gerir esta operação. Um sistema int
 3.  Quando é que um carro elétrico deve parar para carregar antes que fique sem bateria?
 
 Para resolver isto, transformamos a cidade num **Grafo** (uma rede de nós e arestas) obtido através do _OSMnx_ e utilizamos algoritmos de Inteligência Artificial para encontrar as melhores soluções de rota e atribuição.
+#figure(
+  image("Braga.PNG"),
+    caption: [Grafo da cidade de Braga (obtido através do OSMnx)]
+)
 
 = Formulação do Problema
 
@@ -180,16 +184,18 @@ $ E(S) = sum_(v in "Frota") C_"op"(v) + sum_(r in "Backlog") C_"espera"(r) + P_"
 Onde:
 
 - $C_"op"(v)$ (**Custo Operacional**): Inclui o tempo de viagem (calculado via A\*), distância percorrida e o custo monetário da energia (mais baixo para EVs, mais alto para combustão).
-- $C_"espera"(r)$ (**Penalização de Backlog**): Custo elevado para pedidos que ficam na fila, ponderado pela sua prioridade ($"Prio"$) e tempo de espera acumulado ($"Age"$).
-  - Fórmula: $K_"base" times "Prio" times (1 + "Age")$.
+- $C_"espera"(r)$ (**Penalização de Backlog**): Custo elevado para pedidos que permanecem na fila de espera, calculado com base na prioridade e tempo de espera:
+  - $"Prio"$ (Prioridade): Nível de urgência do pedido, numa escala de 1 (normal) a 5 (VIP).
+  - $"Age"$ (Tempo de Espera): Tempo decorrido desde a criação do pedido, em minutos ($"Age" = t_"atual" - t_"criação"$).
+  - Fórmula implementada: $C_"backlog" = 160 + ("Prio"^2 times 30) + ("Age" times 8)$.
+  - O termo $"Prio"^2$ garante que pedidos VIP (prioridade 5) têm um custo 25× maior que pedidos normais (prioridade 1).
 - $P_"viabilidade"$ (**Penalizações**): Um valor proibitivo ($infinity$) aplicado se o estado projetado $V$ não cumprir as restrições (ex: autonomia final < 0 ou capacidade de passageiros insuficiente).
 
 == Dinâmica de Execução
 
 O algoritmo de procura não é executado apenas uma vez. O sistema opera com um planeamento contínuo podendo alterar decisões anteriores de acordo com novos pedidos ou alterações dinâmicas (ex: trocar pedidos já atribuídos a veículos ). O processo de procura é reiniciado sempre que ocorre um evento significativo no ambiente:
-- Chegada de um novo pedido de cliente.
+- Chegada de um novo pedido.
 - Um veículo torna-se disponível (termina viagem ou recarga).
-- Falha de uma infraestrutura (ex: estação de recarga avariada).
 - **Timeouts Escalonados**: O tempo máximo de espera depende da prioridade do cliente.
   - Clientes normais (Prioridade 1) esperam até **30 minutos**.
   - Clientes VIP (Prioridade 5) cancelam o pedido após apenas **10 minutos**.
@@ -197,48 +203,101 @@ O algoritmo de procura não é executado apenas uma vez. O sistema opera com um 
 
 Desta forma, o sistema adapta-se dinamicamente, reavaliando decisões anteriores se uma nova configuração apresentar menor custo global.
 
-== Determinismo Estocástico (Criação de Pedidos)
+== Determinismo Estocástico (Reprodutibilidade)
 
-A geração de pedidos segue um **Processo de Poisson Não-Homogéneo**, onde a taxa de chegada $lambda(t)$ varia ao longo do dia para simular picos de procura (manhã, almoço, fim de tarde).
+Um aspeto crítico do sistema é a sua **reprodutibilidade total**. Apesar de utilizar processos estocásticos (aleatoriedade controlada), a simulação produz **exatamente os mesmos resultados** em cada execução, desde que os parâmetros iniciais se mantenham iguais.
 
-- **Distribuição Exponencial**: O intervalo de tempo até ao próximo pedido é dado por $Delta t = -ln(U) / lambda(t)$, onde $U tilde U(0,1)$ e $lambda(t)$ é a taxa de procura no instante $t$. Isto cria intervalos menores (mais pedidos) quando $lambda(t)$ é alto (horas de ponta).
-- **Hotspots**: A origem e destino dos pedidos não são puramente aleatórios. O sistema utiliza "Hotspots" (zonas de alta densidade como Estações e Universidades, ex: *Universidade do Minho*, *Braga Parque*). A geração de pedidos é enviesada espacialmente.
-- **Trânsito e Meteorologia**: O ambiente não é estático.
-  - *Trânsito*: Simulado com **Ruído de Perlin 3D** e curvas Gaussianas para horas de ponta (08:30, 13:00, 18:00, 21:00), afetando a velocidade nas arestas.
-  - *Meteorologia*: Um sistema probabilístico altera o estado entre Sol, Nublado, Chuva e Tempestade, aplicando penalizações de velocidade.
-  - *Falhas de Infraestrutura*: As estações de carregamento têm uma probabilidade de falha (`0.01%` por tick).
-- **Reprodutibilidade**: Utilizamos *seeds* fixas (gerador de pedidos: `12345`, frota: `42`) no gerador de números pseudo-aleatórios para garantir benchmarks justos.
+=== Princípio de Funcionamento
 
-== Agentes (Pedidos)
-Os pedidos não são homogéneos; cada cliente tem características que afetam o lucro e a urgência.
+Ao invés de usar o gerador global `random.random()`, cada componente da simulação utiliza uma instância isolada de `random.Random(seed)` — um _Pseudo-Random Number Generator_ (PRNG) determinístico. Dado o mesmo _seed_ (semente), a sequência de números "aleatórios" gerada é sempre idêntica.
 
-=== Geração de Pedidos (Processo de Poisson)
-A taxa de chegada $lambda(t)$ varia ao longo do dia:
-- **Madrugada** (00:00-06:30): 0.1-0.16 pedidos/min
-- **Manhã** (07:30-09:30): 0.62 pedidos/min (pico)
-- **Almoço** (12:00-14:00): 0.38 pedidos/min
-- **Tarde** (17:00-19:30): 0.74 pedidos/min (pico máximo)
-- **Pré-noite** (19:30-21:00): 0.32 pedidos/min
-- **Noite** (22:00-00:00): 0.26 pedidos/min
+Isto significa que:
+- Duas execuções com os mesmos _seeds_ geram **pedidos idênticos** nos mesmos instantes de tempo.
+- Os veículos são colocados nas **mesmas posições iniciais**.
+- O **clima** (via Ruído de Perlin) segue a mesma evolução temporal.
+- Os resultados dos benchmarks são **diretamente comparáveis** entre algoritmos.
 
-Intervalo até próximo pedido: $Delta t = -ln(U) / lambda(t)$, onde $U tilde "Uniforme"(0,1)$
+=== Componentes com Seed Fixa
 
-=== Características dos Pedidos
-- **Prioridade (1-5)**: 
-  - Definida pela hora do dia e aleatoriedade
-  - VIP (prioridade 5): 20% durante picos, 5% durante horas normais
-  - Normal (1-4): Distribuição uniforme
-- **Preço Dinâmico**: 
-  - Base: €2.50
-  - Por km: €0.80
-  - Multiplicador para grupos grandes (>4 passageiros): ×1.3
-  - Fórmula: $P = (2.50 + 0.80 times D) times M$
-- **Preferência Ecológica**: 30% dos clientes preferem veículos elétricos
-- **Passageiros**: 1-4 (90%), 5-7 (10%)
-- **Timeout Escalonado**: 
-  - Prioridade 1: 30 minutos
-  - Prioridade 5 (VIP): 10 minutos
-  - Fórmula: $T_"max" = 30 - (("Prio" - 1) times 5)$
+#figure(
+  table(
+    columns: (auto, auto, 1.5fr),
+    align: (center, center, left),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else { white },
+    [*Componente*], [*Seed*], [*O que controla*],
+    [Gerador de Pedidos], [`12345`], [Intervalos de chegada, origens/destinos, prioridades, preferências ecológicas],
+    [Criação da Frota], [`42`], [Posições iniciais dos 10 veículos no mapa],
+    [Trânsito (Perlin)], [`42`], [Padrões espaciais de congestionamento via ruído 3D],
+    [Meteorologia (Perlin)], [`42`], [Transições de clima (Sol, Chuva, Tempestade)],
+    [Falhas de Estações], [`42`], [Quando e quais estações falham (0.01% por tick)],
+  ),
+  caption: [Seeds Fixas Utilizadas na Simulação],
+)
+
+=== Processos Estocásticos Implementados
+
+*Geração de Pedidos (Processo de Poisson Não-Homogéneo)*:
+- A taxa de chegada $lambda(t)$ varia ao longo do dia para simular picos de procura.
+- O intervalo até ao próximo pedido é dado por: $Delta t = -ln(U) / lambda(t)$
+- Onde $U in (0, 1]$ é gerado pelo PRNG com seed `12345`.
+- Isto cria intervalos menores (mais pedidos) quando $lambda(t)$ é alto (horas de ponta).
+
+*Seleção de Hotspots*:
+- Origens e destinos são selecionados com base em pesos dos hotspots ativos.
+- A escolha ponderada usa `rng.choices()` com a mesma seed do gerador de pedidos.
+
+*Trânsito e Meteorologia*:
+- Ruído de Perlin 3D para variação espacial/temporal do tráfego.
+- Ruído de Perlin 1D para transições suaves de clima.
+- Ambos usam `seed=42` como base do ruído.
+
+*Falhas de Infraestrutura*:
+- Cada estação tem 0.01% de probabilidade de falhar por tick de simulação.
+- Utiliza um PRNG dedicado (`station_rng`) com seed `42`.
+- As mesmas estações falham nos mesmos momentos em cada execução.
+
+=== Exceção (Componente Não-Determinístico)
+
+O único componente que utiliza o gerador global `random.random()` não seeded é:
+- **Operadores do Simulated Annealing**: A escolha probabilística de operadores de vizinhança (Swap, Move, Replace, etc.) introduz ligeira variabilidade.
+
+Esta variabilidade é intencional nos algoritmos de otimização: permite explorar diferentes caminhos no espaço de soluções, enquanto o _workload_ (pedidos e condições ambientais) permanece idêntico entre execuções.
+
+== Características dos Pedidos
+
+Cada pedido de transporte é modelado como um agente com atributos que influenciam a atribuição e o custo. As características são geradas deterministicamente a partir da seed `12345`.
+
+=== Taxa de Chegada (Processo de Poisson)
+
+A taxa de chegada $lambda(t)$ varia ao longo do dia, calculada como: $lambda(t) = 0.2 + ("intensidade" times 0.6)$
+
+*Nota sobre escala*: Os valores apresentados são proporcionais ao tamanho da frota simulada (10 veículos). Numa frota real com centenas de veículos, a taxa de pedidos seria proporcionalmente maior. Os padrões temporais (picos matinais e vespertinos) baseiam-se em dados reais do setor TVDE em Portugal#footnote[IMT (2025). Plataforma conjunta entre IMT, Bolt e Uber. Disponível em: https://www.imt-ip.pt].
+
+#figure(
+  table(
+    columns: (auto, auto, auto),
+    align: (left, center, center),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else { white },
+    [*Período*], [*Intensidade*], [*Taxa (pedidos/min)*],
+    [Madrugada (00:00-06:30)], [0.1], [0.26],
+    [Manhã (07:30-09:30)], [0.7], [0.62 (pico)],
+    [Almoço (12:00-14:00)], [0.3], [0.38],
+    [Tarde (17:00-19:30)], [0.9], [0.74 (pico máximo)],
+    [Pré-noite (19:30-21:00)], [0.2], [0.32],
+    [Noite (22:00-00:00)], [0.1], [0.26],
+  ),
+  caption: [Taxa de Chegada de Pedidos por Período],
+)
+
+=== Atributos dos Pedidos
+
+- **Prioridade (1-5)**: VIP (prioridade 5) tem 20% de probabilidade durante picos, 5% noutros períodos. Prioridades 1-4 são uniformemente distribuídas.
+- **Preço**: $P = (2.50 + 0.80 times D) times M$, onde $D$ é a distância em km e $M=1.3$ para grupos >4 passageiros.
+- **Preferência Ecológica**: 30% dos clientes preferem veículos elétricos.
+- **Passageiros**: 1-4 (90%), 5-7 (10%).
+- **Timeout**: $T_"max" = 30 - (("Prio" - 1) times 5)$ minutos (VIP: 10 min, Normal: 30 min).
 
 = Modelação e Implementação
 

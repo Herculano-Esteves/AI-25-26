@@ -33,6 +33,7 @@ class Simulator:
     NUM_GAS_VEHICLES = 5
     STATION_FAILURE_PROB_PER_TICK = 0.0001
     STATION_DOWNTIME_MINUTES = 120.0
+    STATION_FAILURE_SEED = 42
 
     def __init__(self):
         self.vehicles: List[Vehicle] = []
@@ -42,6 +43,7 @@ class Simulator:
 
         self.current_time: float = 0
         self.stats = SimulationStats()
+        self.station_rng = random.Random(self.STATION_FAILURE_SEED)
 
         self.setup_new_map()
 
@@ -153,7 +155,7 @@ class Simulator:
 
         for node in stations_to_check:
             if node.is_available:
-                if random.random() < self.STATION_FAILURE_PROB_PER_TICK:
+                if self.station_rng.random() < self.STATION_FAILURE_PROB_PER_TICK:
                     node.is_available = False
                     node.time_down = 0.0
                     print(f"[Station Failure] Estação em {node.position} falhou!")
