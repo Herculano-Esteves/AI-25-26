@@ -272,7 +272,7 @@ Cada pedido de transporte é modelado como um agente com atributos que influenci
 
 A taxa de chegada $lambda(t)$ varia ao longo do dia, calculada como: $lambda(t) = 0.2 + ("intensidade" times 0.6)$
 
-*Nota sobre escala*: Os valores apresentados são proporcionais ao tamanho da frota simulada (10 veículos). Numa frota real com centenas de veículos, a taxa de pedidos seria proporcionalmente maior. Os padrões temporais (picos matinais e vespertinos) baseiam-se em dados reais do setor TVDE em Portugal#footnote[IMT (2025). Plataforma conjunta entre IMT, Bolt e Uber. Disponível em: https://www.imt-ip.pt].
+*Nota sobre escala*: Os valores apresentados são proporcionais ao tamanho da frota simulada (10 veículos). Numa frota real com milhares de veículos, a taxa de pedidos seria proporcionalmente maior. Os padrões temporais (picos matinais e vespertinos excluindo os fim de semana) baseiam-se em dados reais do setor TVDE em Portugal#footnote[IMT (2025). Plataforma conjunta entre IMT, Bolt e Uber. Disponível em: https://www.imt-ip.pt].
 
 #figure(
   table(
@@ -308,7 +308,7 @@ Utilizamos um mapa real da cidade de Braga obtido via `OSMnx` e serializado em `
 Os nós representam intersecções e as arestas segmentos de estrada. As distâncias são calculadas via fórmula de Haversine (distância na esfera terrestre), permitindo navegação precisa no ambiente urbano.
 
 === Trânsito Dinâmico
-O `TrafficManager` simula ofluxo de tráfego utilizando uma combinação sofisticada de:
+O `TrafficManager` simula o fluxo de tráfego utilizando uma combinação sofisticada de:
 
 - **Curvas Gaussianas**: Para modelar picos de hora de ponta:
   - Manhã (08:30): intensidade 0.6, largura 1.5
@@ -324,13 +324,13 @@ O `TrafficManager` simula ofluxo de tráfego utilizando uma combinação sofisti
 - **Ruído de Perlin (3D)**: Para introduzir variabilidade espacial e temporal orgânica, evitando padrões repetitivos. O ruído é aplicado nas coordenadas $(x,y,t)$ onde $x$ e $y$ são coordenadas geográficas e $t$ é o tempo simulado.
 
 === Sistema Meteorológico
-Um sistema de clima dinâmico que afeta globalmente a velocidade dos veículos:
-- **Sol** (45% do tempo): penalização 1.0× (sem impacto)
-- **Nublado** (20% do tempo): penalização 1.0× (sem impacto)
-- **Chuva** (20% do tempo): penalização 1.3×
-- **Tempestade** (15% do tempo): penalização 1.6×
+O clima é simulado através de Ruído de Perlin 1D sobre o tempo, garantindo transições suaves:
+- **Sol** (noise < 0.45): penalização 1.0× (sem impacto)
+- **Nublado** (noise 0.45-0.65): penalização 1.0× (sem impacto)
+- **Chuva** (noise 0.65-0.85): penalização 1.3×
+- **Tempestade** (noise > 0.85): penalização 1.6×
 
-A transição entre estados meteorológicos é feita através de Ruído de Perlin 1D sobre o tempo, garantindo mudanças suaves e realistas.
+O valor de *noise* é normalizado para [0, 1] a partir do output do Perlin.
 
 === Hotspots (Zonas de Alta Densidade)
 A distribuição de pedidos não é uniforme. Implementamos um sistema de **18 Hotspots** que modela zonas de alta procura na cidade de Braga:
@@ -383,12 +383,12 @@ A frota é heterogénea, composta por veículos com atributos distintos. A confi
 
 === Gestão de Bateria/Combustível
 O sistema implementa uma lógica de gestão preventiva:
-- **Limiar Crítico**: 30 km de autonomia restante
-- **Penalização Exponencial**: Quando a autonomia \< 30 km, a função de custo aplica uma penalização quadrática: 
+- **Limiar Crítico para Recarga**: Quando a autonomia restante \< 50 km (`LOW_AUTONOMY_THRESHOLD`), o veículo é automaticamente enviado para uma estação.
+- **Penalização na Função de Custo**: Quando a autonomia \< 30 km, a função de custo aplica uma penalização quadrática: 
   $P_"bateria" = W_"bateria" times ((30 - "autonomia") / 30)^2$
-- **Decisão de Recarga**: Veículos são enviados para estações quando:
-  - Autonomia restante \< 50 km E não há pedidos urgentes
-  - Após completar um pedido, se autonomia \< 80 km
+- **Tempo de Recarga**:
+  - *Veículos a combustão*: Reabastecimento fixo de 5 minutos.
+  - *Veículos elétricos*: Recarga proporcional à taxa da estação (ex: 300 km/h → ~20-30 min para carga completa).
 
 **Composição Detalhada da Frota (10 veículos)**:
 - **EVs** (5 total): 1×3 pax (250km), 2×4 pax (300-350km), 2×7 pax (380-420km)
