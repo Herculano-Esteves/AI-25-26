@@ -8,10 +8,6 @@ from Simulation.request_simulation import set_selected_algorithm, set_selected_a
 
 
 def run_benchmark_task(config, ticks_to_run, duration_hours):
-    """
-    Esta função roda em um PROCESSO SEPARADO.
-    Ela deve instanciar seu próprio simulador ou receber um estado inicial limpo.
-    """
     routing, assignment = config
 
     try:
@@ -150,7 +146,6 @@ class BenchmarkRunner:
                 if self.should_stop:
                     break
 
-                # Tarefa para o pool
                 future = executor.submit(
                     run_benchmark_task, config, self.ticks_to_run, self.simulation_duration_hours
                 )

@@ -6,24 +6,20 @@ from models.vehicle import Motor
 
 
 class MapView:
-    # GUI constants
-    TICK_RATE_MS = 50
+    """Visualização do mapa com zoom, drag e desenho de elementos."""
 
-    # Navigation constants
+    # Configurações gerais
     ZOOM_IN_FACTOR = 1.2
     ZOOM_OUT_FACTOR = 1 / 1.2
     PADDING_RESET = 40
     ZOOM_THRESHOLD_TRAFFIC = 10000.0
 
-    # Visual constants
+    # Cores
     BG_COLOR = "#2c2c2c"
     EDGE_COLOR = "#4a4a4a"
-    NODE_COLOR = "lightblue"
-    REQUEST_ACCEPTED_COLOR = "yellow"
     REQUEST_DESTINATION_COLOR = "magenta"
-    DEBUG_TEXT_COLOR = "yellow"
 
-    # Drawing constants
+    # Tamanhos
     SPRITE_SIZE_PX = 22
     REQUEST_FONT = ("Arial", 20)
     KM_PER_DEGREE_LAT = 130
@@ -35,11 +31,10 @@ class MapView:
         self.sprite_cache = {}
         self._load_sprites()
 
-        # Camera variables
+        # Câmara
         self.offset_x = 0.0
         self.offset_y = 0.0
         self.zoom = 20.0
-
         self._drag_start_x = 0
         self._drag_start_y = 0
         self._drag_start_offset_x = 0
@@ -47,7 +42,7 @@ class MapView:
         self._drag_last_x = 0
         self._drag_last_y = 0
 
-        # UI Elements
+        # UI
         self.frame = ttk.Frame(self.parent)
         self.canvas = tk.Canvas(self.frame, bg=self.BG_COLOR, cursor="crosshair")
         self.canvas.pack(side=tk.TOP, fill=tk.BOTH, expand=True)
@@ -59,10 +54,10 @@ class MapView:
 
     def _load_sprites(self):
         print("A carregar sprites...")
-        base_path = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-        image_path = os.path.join(base_path, "images")
+        base = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
+        img_dir = os.path.join(base, "images")
 
-        sprite_files = {
+        sprites = {
             "gas": "gas.png",
             "ev": "ev.png",
             "carro_gas": "carro_gas.png",
@@ -70,19 +65,17 @@ class MapView:
             "request_wait": "person_blue.png",
             "request_accepted": "person_green.png",
         }
+        size = (self.SPRITE_SIZE_PX, self.SPRITE_SIZE_PX)
 
-        new_size = (self.SPRITE_SIZE_PX, self.SPRITE_SIZE_PX)
-
-        for name, filename in sprite_files.items():
+        for name, fname in sprites.items():
+            path = os.path.join(img_dir, fname)
             try:
-                img_path = os.path.join(image_path, filename)
-                img = Image.open(img_path)
-                img = img.resize(new_size, Image.Resampling.LANCZOS)
+                img = Image.open(path).resize(size, Image.Resampling.LANCZOS)
                 self.sprite_cache[name] = ImageTk.PhotoImage(img)
             except FileNotFoundError:
-                print(f"Warning: Sprite {filename} not found at {img_path}")
+                print(f"Aviso: sprite {fname} não encontrado")
             except Exception as e:
-                print(f"Error loading sprite {filename}: {e}")
+                print(f"Erro ao carregar {fname}: {e}")
 
     def _setup_bindings(self):
         self.canvas.bind("<Button-4>", self._on_zoom)
@@ -128,26 +121,24 @@ class MapView:
                 self.redraw_full_canvas()
                 return
 
-        # Fallback if no map loaded yet
         self.redraw_full_canvas()
 
     def _on_resize(self, event):
         self.redraw_full_canvas()
 
     def _on_zoom(self, event):
-        zoom_factor = 1.0
         if event.num == 4:
-            zoom_factor = self.ZOOM_IN_FACTOR
+            factor = self.ZOOM_IN_FACTOR
         elif event.num == 5:
-            zoom_factor = self.ZOOM_OUT_FACTOR
+            factor = self.ZOOM_OUT_FACTOR
         else:
             return
 
-        world_x_before, world_y_before = self._canvas_to_world(event.x, event.y)
-        self.zoom *= zoom_factor
-        canvas_x_after, canvas_y_after = self._world_to_canvas(world_x_before, world_y_before)
-        self.offset_x += event.x - canvas_x_after
-        self.offset_y += event.y - canvas_y_after
+        wx, wy = self._canvas_to_world(event.x, event.y)
+        self.zoom *= factor
+        cx, cy = self._world_to_canvas(wx, wy)
+        self.offset_x += event.x - cx
+        self.offset_y += event.y - cy
         self.redraw_full_canvas()
 
     def _on_drag_start(self, event):
@@ -224,17 +215,8 @@ class MapView:
         self._draw_requests()
         self._draw_vehicles()
 
-        # Debug Info
-        self.canvas.create_text(
-            10,
-            10,
-            anchor=tk.NW,
-            fill=self.DEBUG_TEXT_COLOR,
-            text=f"Zoom: {self.zoom:.2f} | Offset: ({self.offset_x:.0f}, {self.offset_y:.0f})",
-        )
-
     def _draw_edges(self, c_width, c_height, margin):
-        show_traffic = (self.zoom > self.ZOOM_THRESHOLD_TRAFFIC) and hasattr(
+        show_traffic = self.zoom > self.ZOOM_THRESHOLD_TRAFFIC and hasattr(
             self.simulator, "traffic_manager"
         )
 
@@ -286,11 +268,12 @@ class MapView:
             x, y = self._world_to_canvas(*node.position)
             if x < -margin or x > c_width + margin or y < -margin or y > c_height + margin:
                 continue
-            
+
             has_gas = node.gas_pumps > 0
             has_ev = node.energy_chargers > 0
-            
+
             if has_gas and has_ev:
+                # Estação mista
                 offset = self.SPRITE_SIZE_PX * 0.6
                 if sprite_gas:
                     self.canvas.create_image(
@@ -301,10 +284,8 @@ class MapView:
                         x + offset, y, image=sprite_ev, tags=("no", "posto_ev")
                     )
             elif has_gas and sprite_gas:
-                # Gas-only station: centered
                 self.canvas.create_image(x, y, image=sprite_gas, tags=("no", "posto_gas"))
             elif has_ev and sprite_ev:
-                # EV-only station: centered
                 self.canvas.create_image(x, y, image=sprite_ev, tags=("no", "posto_ev"))
 
     def _draw_station_overlays(self):

@@ -22,7 +22,6 @@ class VehicleCondition(Enum):
 
 class Vehicle:
 
-    # Tiny optimization
     __slots__ = (
         "id",
         "motor",
@@ -74,18 +73,16 @@ class Vehicle:
         self.request = request
         self.current_route = current_route if current_route is not None else []
 
-        # This index points to the START node of the current segment
         self.current_segment_index = 0
         self.current_segment_progress_time: float = 0.0
 
-        self.time_stopped: float = 0.0  # Time penalty
-        self.total_station_time: float = 0.0  #  Total time spent refueling
-        self.co2_emitted: float = 0.0  # Total CO2 emitted
+        self.time_stopped: float = 0.0
+        self.total_station_time: float = 0.0
+        self.co2_emitted: float = 0.0
 
         self.total_trips: int = 0
         self.sum_occupancy: float = 0.0
 
-        # Coordinate for the GUI
         self.map_coordinates: Tuple[float, float] = position_node.position
 
     def __repr__(self) -> str:

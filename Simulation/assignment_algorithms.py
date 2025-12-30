@@ -1,7 +1,7 @@
 import random
 import math
 import numpy as np
-from typing import List, Set, Optional, Tuple, TYPE_CHECKING
+from typing import List, Set, TYPE_CHECKING
 from models.request import Request
 from Simulation.simulation_config import PlanningConfig
 
@@ -10,9 +10,7 @@ if TYPE_CHECKING:
 
 
 class SAState:
-    """
-    Simples classe para guardar o estado da solução (atribuição e backlog).
-    """
+    """Estado da solução: atribuição veículo→pedido e backlog."""
 
     def __init__(self, assignment: List[int], backlog: Set[int]):
         self.assignment = assignment
@@ -22,128 +20,90 @@ class SAState:
         return SAState(self.assignment.copy(), self.backlog.copy())
 
 
-def _calculate_backlog_penalty(request: Request, current_time: float) -> float:
-    """
-    Calcula quanto nos custa deixar este pedido pendurado no backlog.
-    Leva em conta a prioridade e há quanto tempo ele está à espera.
-    """
+def _backlog_penalty(request: Request, current_time: float) -> float:
+    """Custo de deixar um pedido no backlog (prioridade + tempo de espera)."""
     age = max(0, current_time - request.creation_time)
-
-    # A prioridade pesa bastante (ao quadrado)
     priority_cost = (request.priority**2) * PlanningConfig.WEIGHT_PRIORITY
-
-    # O tempo de espera também chateia, por isso penalizamos
     age_cost = age * PlanningConfig.WEIGHT_AGE * 2.0
-
     return PlanningConfig.BACKLOG_BASE_PENALTY + priority_cost + age_cost
 
 
-def calculate_total_system_energy(
-    state: SAState,
-    cost_matrix: np.ndarray,
-    requests: List[Request],
-    current_time: float,
+def calculate_total_energy(
+    state: SAState, cost_matrix: np.ndarray, requests: List[Request], current_time: float
 ) -> float:
-    """
-    Função de custo (energia total). Queremos minimizar isto.
-    Soma o custo das viagens dos veículos + penalizações do backlog.
-    """
-    total_energy = 0.0
+    """Função de custo total: soma dos custos de viagem + penalizações do backlog."""
+    total = 0.0
 
-    # Custo das atribuições atuais (quem vai buscar quem)
-    for vehicle_idx, request_idx in enumerate(state.assignment):
-        if request_idx != -1:
-            cost = cost_matrix[vehicle_idx, request_idx]
-            # Se for impossível (infinito), aborta logo
+    for v_idx, r_idx in enumerate(state.assignment):
+        if r_idx != -1:
+            cost = cost_matrix[v_idx, r_idx]
             if cost == float("inf"):
                 return float("inf")
-            total_energy += cost
+            total += cost
 
-    # Penalização por quem ficou de fora (backlog)
-    for request_idx in state.backlog:
-        req = requests[request_idx]
-        total_energy += _calculate_backlog_penalty(req, current_time)
+    for r_idx in state.backlog:
+        total += _backlog_penalty(requests[r_idx], current_time)
 
-    return total_energy
+    return total
 
 
 def get_neighbor(
     state: SAState, num_vehicles: int, cost_matrix: np.ndarray, requests: List[Request]
 ) -> SAState:
-    """
-    Gera um vizinho próximo da solução atual.
-    Tenta fazer pequenas mudanças: trocar, mover, substituir, etc.
-    """
-    for _ in range(3):  # Tentar 3x gerar válido
-        new_state = state.copy()
-
-        # Vamos decidir o que fazer com base num número aleatório
+    """Gera vizinho: swap, move, replace, add ou remove."""
+    for _ in range(3):
+        new = state.copy()
         prob = random.random()
 
-        # Identificar quem está ocupado e quem está livre
-        busy_vehicles = [i for i, r in enumerate(new_state.assignment) if r != -1]
-        free_vehicles = [i for i, r in enumerate(new_state.assignment) if r == -1]
+        busy = [i for i, r in enumerate(new.assignment) if r != -1]
+        free = [i for i, r in enumerate(new.assignment) if r == -1]
 
-        # OP 1: SWAP (25%)
-        if prob < 0.25 and len(busy_vehicles) >= 2:
-            v1, v2 = random.sample(busy_vehicles, 2)
-            # Troca simples
-            new_state.assignment[v1], new_state.assignment[v2] = (
-                new_state.assignment[v2],
-                new_state.assignment[v1],
-            )
-            return new_state
+        # SWAP (25%)
+        if prob < 0.25 and len(busy) >= 2:
+            v1, v2 = random.sample(busy, 2)
+            new.assignment[v1], new.assignment[v2] = new.assignment[v2], new.assignment[v1]
+            return new
 
-        # OP 2: MOVE (Passar um pedido de um veículo para outro livre) (25%)
-        elif prob < 0.50 and busy_vehicles and free_vehicles:
-            src_vehicle = random.choice(busy_vehicles)
-            dst_vehicle = random.choice(free_vehicles)
+        # MOVE para veículo livre (25%)
+        elif prob < 0.50 and busy and free:
+            src, dst = random.choice(busy), random.choice(free)
+            r_idx = new.assignment[src]
+            if cost_matrix[dst, r_idx] != float("inf"):
+                new.assignment[dst] = r_idx
+                new.assignment[src] = -1
+                return new
 
-            request_idx = new_state.assignment[src_vehicle]
+        # REPLACE com pedido do backlog (30%)
+        elif prob < 0.80 and busy and new.backlog:
+            v_idx = random.choice(busy)
+            new_r = random.choice(list(new.backlog))
+            old_r = new.assignment[v_idx]
+            if cost_matrix[v_idx, new_r] != float("inf"):
+                new.assignment[v_idx] = new_r
+                new.backlog.remove(new_r)
+                new.backlog.add(old_r)
+                return new
 
-            # Só movemos se o destino conseguir fazer o pedido
-            if cost_matrix[dst_vehicle, request_idx] != float("inf"):
-                new_state.assignment[dst_vehicle] = request_idx
-                new_state.assignment[src_vehicle] = -1
-                return new_state
+        # ADD do backlog (15%)
+        elif free and new.backlog:
+            v_idx = random.choice(free)
+            r_idx = random.choice(list(new.backlog))
+            if cost_matrix[v_idx, r_idx] != float("inf"):
+                new.assignment[v_idx] = r_idx
+                new.backlog.remove(r_idx)
+                return new
 
-        # OP 3: REPLACE (Trocar um pedido atribuído por um do backlog) (30%)
-        elif prob < 0.80 and busy_vehicles and new_state.backlog:
-            vehicle_idx = random.choice(busy_vehicles)
-            new_req_idx = random.choice(list(new_state.backlog))
-            old_req_idx = new_state.assignment[vehicle_idx]
+        # REMOVE para backlog (5%)
+        elif busy and len(new.backlog) < num_vehicles * 3:
+            v_idx = random.choice(busy)
+            r_idx = new.assignment[v_idx]
+            # Pedidos VIP são mais difíceis de remover
+            is_vip = requests[r_idx].priority >= 4
+            if not is_vip or random.random() < 0.1:
+                new.assignment[v_idx] = -1
+                new.backlog.add(r_idx)
+                return new
 
-            if cost_matrix[vehicle_idx, new_req_idx] != float("inf"):
-                new_state.assignment[vehicle_idx] = new_req_idx
-                new_state.backlog.remove(new_req_idx)
-                new_state.backlog.add(old_req_idx)
-                return new_state
-
-        # OP 4: ADD (Atribuir um pedido do backlog a um veículo livre) (15%)
-        elif free_vehicles and new_state.backlog:
-            vehicle_idx = random.choice(free_vehicles)
-            req_idx = random.choice(list(new_state.backlog))
-
-            if cost_matrix[vehicle_idx, req_idx] != float("inf"):
-                new_state.assignment[vehicle_idx] = req_idx
-                new_state.backlog.remove(req_idx)
-                return new_state
-
-        # OP 5: REMOVE (Remover um pedido e mandar para o backlog) (5%)
-        elif busy_vehicles:
-            # Só removemos se o backlog não estiver gigante
-            if len(new_state.backlog) < num_vehicles * 3:
-                vehicle_idx = random.choice(busy_vehicles)
-                req_idx = new_state.assignment[vehicle_idx]
-
-                # Proteção para pedidos VIP: é difícil removê-los (só 10% de chance)
-                is_vip = requests[req_idx].priority >= 4
-                if not is_vip or random.random() < 0.1:
-                    new_state.assignment[vehicle_idx] = -1
-                    new_state.backlog.add(req_idx)
-                    return new_state
-
-    # Se não conseguimos gerar nada válido, devolvemos o original
     return state
 
 
@@ -153,198 +113,134 @@ def simulated_annealing_solver(
     requests: List[Request],
     initial_temp: float = 200.0,
 ) -> List[int]:
-    """
-    O nosso "cavalo de batalha". Usa Simulated Annealing para encontrar uma boa distribuição
-    de pedidos pelos veículos.
-    """
-    num_vehicles = cost_matrix.shape[0]
-    num_requests = cost_matrix.shape[1]
+    """Simulated Annealing para atribuição de pedidos a veículos."""
+    n_vehicles = cost_matrix.shape[0]
+    n_requests = cost_matrix.shape[1]
 
-    # Solução Inicial (Greedy Estocástico)
-    # Começamos com tudo vazio e tentamos preencher de forma inteligente
-    assignment = [-1] * num_vehicles
-    backlog = set(range(num_requests))
+    # Solução inicial
+    assignment = [-1] * n_vehicles
+    backlog = set(range(n_requests))
 
-    # Ordenamos pedidos por prioridade para tentar atender os VIPs primeiro
-    sorted_requests = sorted(range(num_requests), key=lambda i: requests[i].priority, reverse=True)
-
-    for req_idx in sorted_requests:
-        # Quem pode levar este pedido?
-        candidates = []
-        for v_idx in range(num_vehicles):
-            # Se o veículo está livre e consegue chegar lá
-            if assignment[v_idx] == -1 and cost_matrix[v_idx, req_idx] != float("inf"):
-                candidates.append(v_idx)
-
+    sorted_reqs = sorted(range(n_requests), key=lambda i: requests[i].priority, reverse=True)
+    for r_idx in sorted_reqs:
+        candidates = [
+            v
+            for v in range(n_vehicles)
+            if assignment[v] == -1 and cost_matrix[v, r_idx] != float("inf")
+        ]
         if candidates:
-            # Escolhemos o melhor candidato (menor custo) na maioria das vezes (80%)
-            # Mas às vezes (20%) escolhemos um aleatório para dar variedade
-            best_candidate = min(candidates, key=lambda v: cost_matrix[v, req_idx])
+            best = min(candidates, key=lambda v: cost_matrix[v, r_idx])
+            chosen = best if random.random() < 0.8 else random.choice(candidates)
+            assignment[chosen] = r_idx
+            backlog.remove(r_idx)
 
-            if random.random() < 0.8:
-                chosen_vehicle = best_candidate
-            else:
-                chosen_vehicle = random.choice(candidates)
+    current = SAState(assignment, backlog)
+    current_energy = calculate_total_energy(current, cost_matrix, requests, simulator.current_time)
+    best, best_energy = current.copy(), current_energy
 
-            assignment[chosen_vehicle] = req_idx
-            backlog.remove(req_idx)
-
-    # Configuração inicial do SA
-    current_state = SAState(assignment, backlog)
-    current_energy = calculate_total_system_energy(
-        current_state, cost_matrix, requests, simulator.current_time
-    )
-
-    best_state = current_state.copy()
-    best_energy = current_energy
-
-    # Parâmetros do recozimento
-    temperature = initial_temp
-    cooling_rate = 0.96
+    temp = initial_temp
+    cooling = 0.96
+    stagnation = 0
     max_iterations = 1200
-    stagnation_limit = 200
-    stagnation_counter = 0
 
-    # Loop Principal
     for _ in range(max_iterations):
-        # Gerar vizinho
-        neighbor = get_neighbor(current_state, num_vehicles, cost_matrix, requests)
-        neighbor_energy = calculate_total_system_energy(
+        neighbor = get_neighbor(current, n_vehicles, cost_matrix, requests)
+        neighbor_energy = calculate_total_energy(
             neighbor, cost_matrix, requests, simulator.current_time
         )
 
-        # Se for inválido, ignora
         if neighbor_energy == float("inf"):
             continue
 
         delta = neighbor_energy - current_energy
 
-        # Aceitamos se for melhor OU se a temperatura permitir (critério de Metropolis)
-        should_accept = False
-        if delta <= 0:
-            should_accept = True
-        else:
-            # Probabilidade de aceitar piora diminui com a temperatura
-            if temperature > 0.01:
-                probability = math.exp(-delta / temperature)
-                if random.random() < probability:
-                    should_accept = True
+        # Critério de Metropolis
+        accept = delta <= 0 or (temp > 0.01 and random.random() < math.exp(-delta / temp))
 
-        if should_accept:
-            current_state = neighbor
-            current_energy = neighbor_energy
-
-            # Atualiza o melhor global se encontrarmos
+        if accept:
+            current, current_energy = neighbor, neighbor_energy
             if current_energy < best_energy:
-                best_state = current_state.copy()
-                best_energy = current_energy
-                stagnation_counter = 0
+                best, best_energy = current.copy(), current_energy
+                stagnation = 0
             else:
-                stagnation_counter += 1
+                stagnation += 1
         else:
-            stagnation_counter += 1
+            stagnation += 1
 
-        # Reaquecimento se ficarmos presos muito tempo
-        if stagnation_counter > stagnation_limit:
-            temperature = min(temperature * 1.8, initial_temp)
-            stagnation_counter = 0
-            # Voltamos ao melhor conhecido para não nos perdermos
-            current_state = best_state.copy()
+        # Reaquecimento se estagnar
+        if stagnation > 200:
+            temp = min(temp * 1.8, initial_temp)
+            stagnation = 0
+            current = best.copy()
 
-        # Arrefecimento
-        temperature = max(temperature * cooling_rate, 0.05)
+        temp = max(temp * cooling, 0.05)
 
-    return best_state.assignment
+    return best.assignment
 
 
 def greedy_solver(
-    simulator: "Simulator",
-    cost_matrix: np.ndarray,
-    requests: List[Request],
+    simulator: "Simulator", cost_matrix: np.ndarray, requests: List[Request]
 ) -> List[int]:
-    """
-    Abordagem sôfrega (Greedy).
-    Simplesmente olha para todas as combinações possíveis e vai escolhendo
-    as mais baratas até não dar mais. Rápido, mas nem sempre ótimo.
-    """
-    num_vehicles = cost_matrix.shape[0]
-    num_requests = cost_matrix.shape[1]
+    """Greedy: escolhe sempre a atribuição mais barata disponível."""
+    n_vehicles, n_requests = cost_matrix.shape
 
-    assignment = [-1] * num_vehicles
-    assigned_requests = set()
+    assignment = [-1] * n_vehicles
+    assigned = set()
 
-    # Listar todas as possibilidades válidas (custo, veiculo, pedido)
-    possible_moves = []
-    for v in range(num_vehicles):
-        for r in range(num_requests):
-            cost = cost_matrix[v, r]
-            if cost != float("inf"):
-                possible_moves.append((cost, v, r))
+    # Ordenar por custo crescente
+    moves = [
+        (cost_matrix[v, r], v, r)
+        for v in range(n_vehicles)
+        for r in range(n_requests)
+        if cost_matrix[v, r] != float("inf")
+    ]
+    moves.sort()
 
-    # Ordenar do mais barato para o mais caro
-    possible_moves.sort(key=lambda x: x[0])
-
-    # Preencher
-    for _, v, r in possible_moves:
-        # Se o veículo está livre E o pedido ainda não foi pego
-        if assignment[v] == -1 and r not in assigned_requests:
+    for _, v, r in moves:
+        if assignment[v] == -1 and r not in assigned:
             assignment[v] = r
-            assigned_requests.add(r)
+            assigned.add(r)
 
     return assignment
 
 
 def hill_climbing_solver(
-    simulator: "Simulator",
-    cost_matrix: np.ndarray,
-    requests: List[Request],
+    simulator: "Simulator", cost_matrix: np.ndarray, requests: List[Request]
 ) -> List[int]:
-    """
-    Hill Climbing Estocástico.
-    É como o Simulated Annealing, mas sem a parte de aceitar soluções piores.
-    Só sobe o morro (ou desce, no caso de minimizar custo).
-    """
-    num_vehicles = cost_matrix.shape[0]
-    num_requests = cost_matrix.shape[1]
+    """Hill Climbing: como SA mas só aceita melhorias."""
+    n_vehicles, n_requests = cost_matrix.shape
 
-    # Inicialização Greedy (para começar bem)
-    assignment = [-1] * num_vehicles
-    backlog = set(range(num_requests))
-    assigned_requests = set()
+    # Inicialização greedy
+    assignment = [-1] * n_vehicles
+    backlog = set(range(n_requests))
+    assigned = set()
 
-    # Mesma lógica do greedy_solver para o estado inicial
-    possible_moves = []
-    for v in range(num_vehicles):
-        for r in range(num_requests):
-            if cost_matrix[v, r] != float("inf"):
-                possible_moves.append((cost_matrix[v, r], v, r))
+    moves = [
+        (cost_matrix[v, r], v, r)
+        for v in range(n_vehicles)
+        for r in range(n_requests)
+        if cost_matrix[v, r] != float("inf")
+    ]
+    moves.sort()
 
-    possible_moves.sort(key=lambda x: x[0])
-
-    for _, v, r in possible_moves:
-        if assignment[v] == -1 and r not in assigned_requests:
+    for _, v, r in moves:
+        if assignment[v] == -1 and r not in assigned:
             assignment[v] = r
-            assigned_requests.add(r)
-            backlog.remove(r)
+            assigned.add(r)
+            backlog.discard(r)
 
-    current_state = SAState(assignment, backlog)
-    current_energy = calculate_total_system_energy(
-        current_state, cost_matrix, requests, simulator.current_time
-    )
+    current = SAState(assignment, backlog)
+    current_energy = calculate_total_energy(current, cost_matrix, requests, simulator.current_time)
 
-    # Tenta melhorar 500 vezes
     for _ in range(500):
-        neighbor = get_neighbor(current_state, num_vehicles, cost_matrix, requests)
-        neighbor_energy = calculate_total_system_energy(
+        neighbor = get_neighbor(current, n_vehicles, cost_matrix, requests)
+        neighbor_energy = calculate_total_energy(
             neighbor, cost_matrix, requests, simulator.current_time
         )
-
-        # Só aceita se for estritamente melhor
         if neighbor_energy < current_energy:
-            current_state = neighbor
-            current_energy = neighbor_energy
+            current, current_energy = neighbor, neighbor_energy
 
-    return current_state.assignment
+    return current.assignment
 
 
 def solve_assignment(
@@ -352,17 +248,13 @@ def solve_assignment(
     simulator: "Simulator",
     cost_matrix: np.ndarray,
     requests: List[Request],
-    initial_temp: float = 200.0,
+    initial_temp: float = 250.0,
 ) -> List[int]:
-    """
-    Função principal que despacha para o algoritmo escolhido.
-    """
-    algo_name = algorithm.lower()
-
-    if algo_name == "greedy":
+    """Despacha para o algoritmo escolhido."""
+    name = algorithm.lower()
+    if name == "greedy":
         return greedy_solver(simulator, cost_matrix, requests)
-    elif algo_name == "hill climbing":
+    elif name == "hill climbing":
         return hill_climbing_solver(simulator, cost_matrix, requests)
     else:
-        # Por defeito usamos o Simulated Annealing que é o mais robusto
         return simulated_annealing_solver(simulator, cost_matrix, requests, initial_temp)

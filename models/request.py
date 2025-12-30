@@ -5,7 +5,6 @@ from typing import Optional, List
 class Request:
     id_counter = 1
 
-    # Tiny optimization
     __slots__ = (
         "id",
         "start_node",
@@ -32,7 +31,7 @@ class Request:
         creation_time: float,
         price: float,
         priority: int = 1,  # (1=low, 5=high)
-        environmental_preference: bool = False,  # Electric preference
+        environmental_preference: bool = False,
         path: Optional[List[Node]] = None,
         path_distance: float = 0.0,
         path_time: float = 0.0,

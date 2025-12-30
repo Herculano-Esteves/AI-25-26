@@ -52,7 +52,7 @@ class Simulator:
         self.traffic_manager = TrafficManager()
 
         # Inicializar o Gerador de Pedidos
-        self.request_generator = RequestGenerator(self.map, self.hotspot_manager, seed=12345)
+        self.request_generator = RequestGenerator(self.map, self.hotspot_manager, seed=42)
 
         self.reset_simulation_state()
 

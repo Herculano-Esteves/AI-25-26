@@ -62,7 +62,7 @@ class TrafficManager:
         noise_val = pnoise3(x_noise, y_noise, z_time, octaves=2, persistence=0.5)
         noise_val = (noise_val + 1) / 2.0
 
-        # Center of city filter
+        # Centro da cidade
         dist = math.sqrt((lon - self.center_coords[0]) ** 2 + (lat - self.center_coords[1]) ** 2)
         center_influence = max(0.0, 1.0 - (dist / 0.04))
         raw_congestion = noise_val + (center_influence * 0.45)
@@ -74,7 +74,6 @@ class TrafficManager:
             return 1.0
 
         excess_traffic = raw_congestion - traffic_threshold
-
 
         penalty = excess_traffic * (rush_intensity * 5.0)
 

@@ -16,13 +16,11 @@ class CityGraph:
         self.ev_stations: List[Node] = []
 
     def add_node(self, no: Node):
-        # If it already exists it will replace
         if no not in self.nos:
             self.nos.add(no)
             self.adj[no] = {}
             self.position_to_node[no.position] = no
 
-            # Add to station list
             if no.gas_pumps > 0:
                 self.gas_stations.append(no)
             if no.energy_chargers > 0:
@@ -39,7 +37,7 @@ class CityGraph:
         start_node: Node,
         end_node: Node,
         distance_km: float,
-        time: float,  # Minutes
+        time: float,  # Minutos
         max_speed: float,
         bidirecional: bool = True,
     ):

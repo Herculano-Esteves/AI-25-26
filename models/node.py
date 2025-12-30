@@ -2,7 +2,6 @@ from typing import Tuple
 
 
 class Node:
-    # Tiny optimization
     __slots__ = (
         "position",
         "gas_pumps",

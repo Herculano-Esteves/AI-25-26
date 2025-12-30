@@ -11,9 +11,6 @@ import math
 import pickle
 import os
 
-# €
-BASE_FARE = 2.50
-PRICE_PER_KM = 0.60
 CACHE_FILE = "braga_map_cache.pkl"
 
 
@@ -104,9 +101,6 @@ def generate_map() -> CityGraph:
 
 
 def _enrich_nodes_with_stations(G, city_map: CityGraph, place: str):
-    """
-    Tries to find real gas/ev stations
-    """
     print("A procurar estações reais (Combustível e EV)...")
     try:
         tags = {"amenity": ["fuel", "charging_station"]}
@@ -208,24 +202,19 @@ def _create_custom_vehicle(
 
 
 def create_vehicle_fleet(
-    all_nodes: List[Node], num_ev: int, num_gas: int, seed: int = 42, use_dynamic_fleet: bool = False
+    all_nodes: List[Node],
+    num_ev: int,
+    num_gas: int,
+    seed: int = 42,
+    use_dynamic_fleet: bool = False,
 ) -> List[Vehicle]:
     """
     Cria a frota de veículos de forma determinística.
-    
-    Parâmetros:
-    - use_dynamic_fleet: Se False (padrão), usa a frota fixa de 10 veículos (5 EV + 5 Gas).
-                         Se True, cria dinamicamente num_ev veículos elétricos e num_gas a combustão.
-    
-    Frota Fixa (padrão):
-    - 5 EVs + 5 Gas = 10 veículos
-    - Capacidades: 4x(7pax), 4x(4pax), 2x(3pax)
-    - Ranges EV: 250-420 km | Gas: 600-900 km
     """
     veiculos = []
     rng = random.Random(seed)
 
-    base_cost_ev = 0.04   # €/km
+    base_cost_ev = 0.04  # €/km
     base_cost_gas = 0.12  # €/km
 
     if not use_dynamic_fleet:
@@ -273,7 +262,9 @@ def create_vehicle_fleet(
             pax, max_range, base_name = spec
             name = f"{base_name}-{i+1}"
             loc = rng.choice(all_nodes)
-            v = _create_custom_vehicle(name, Motor.ELECTRIC, loc, pax, float(max_range), base_cost_ev, rng)
+            v = _create_custom_vehicle(
+                name, Motor.ELECTRIC, loc, pax, float(max_range), base_cost_ev, rng
+            )
             veiculos.append(v)
 
         for i in range(num_gas):
@@ -281,10 +272,14 @@ def create_vehicle_fleet(
             pax, max_range, base_name = spec
             name = f"{base_name}-{i+1}"
             loc = rng.choice(all_nodes)
-            v = _create_custom_vehicle(name, Motor.COMBUSTION, loc, pax, float(max_range), base_cost_gas, rng)
+            v = _create_custom_vehicle(
+                name, Motor.COMBUSTION, loc, pax, float(max_range), base_cost_gas, rng
+            )
             veiculos.append(v)
 
-        print(f"Frota dinâmica gerada ({num_ev} EV + {num_gas} Gas = {len(veiculos)} veículos). Seed: {seed}")
+        print(
+            f"Frota dinâmica gerada ({num_ev} EV + {num_gas} Gas = {len(veiculos)} veículos). Seed: {seed}"
+        )
 
     return veiculos
 
