@@ -100,7 +100,7 @@ Este relatório apresenta as informações relativas ao projeto da Unidade Curri
 
 O objetivo foi desenvolver algoritmos de procura que permitam otimizar a gestão de uma frota de táxis heterogénea, composta por veículos a combustão e elétricos, garantindo a eficiência operacional, a redução de custos energéticos e o cumprimento de critérios ambientais. 
 
-A solução implementada utiliza algoritmos lecionados na cadeira de Inteligência Artificial, nomeadamente algoritmos de procura informada (A\*) e algoritmos de otimização local estocástica (Simulated Annealing) para resolver o problema de atribuição de veículos e pedidos em tempo real.
+A solução implementada utiliza algoritmos lecionados na cadeira de Inteligência Artificial, nomeadamente algoritmos de procura informada e algoritmos de otimização local para resolver o problema de atribuição de veículos e pedidos em tempo real.
 
 == Objetivos
 O objetivo principal é desenvolver e comparar algoritmos de procura e otimização para:
@@ -120,17 +120,13 @@ O nosso trabalho é criar um programa para gerir esta operação. Um sistema int
 2.  Qual o melhor caminho para lá chegar, fugindo ao trânsito?
 3.  Quando é que um carro elétrico deve parar para carregar antes que fique sem bateria?
 
-Para resolver isto, transformamos a cidade num **Grafo** (uma rede de nós e arestas) obtido através do _OSMnx_ e utilizamos algoritmos de Inteligência Artificial para encontrar as melhores soluções de rota e atribuição.
-#figure(
-  image("Braga.PNG"),
-    caption: [Grafo da cidade de Braga (obtido através do OSMnx)]
-)
+Para resolver isto, transformamos a cidade num *Grafo* (uma rede de nós e arestas) obtido através do _OSMnx_ e utilizamos algoritmos de Inteligência Artificial para encontrar as melhores soluções de rota e atribuição.
 
 = Formulação do Problema
 
-Para responder ao desafio de gestão de frota da TaxiGreen, o problema foi modelado como um problema de Otimização Combinatória Dinâmica, resolvido através de uma pesquisa local estocástica (Simulated Annealing).
+Para responder ao desafio de gestão de frota da TaxiGreen, o problema foi modelado como um problema de Otimização Combinatória, resolvido através de uma pesquisa local.
 
-Ao contrário de um problema de navegação simples (resolvido via A\*), o desafio aqui não é encontrar apenas um caminho, mas sim encontrar a configuração de alocação ótima entre veículos e pedidos num determinado instante, considerando restrições de capacidade e autonomia.
+Ao contrário de um problema de navegação simples, o desafio aqui não é encontrar apenas um caminho, mas sim encontrar a configuração de alocação ótima entre veículos e pedidos num determinado instante, considerando restrições de capacidade e autonomia.
 
 == Definição do Estado (S)
 
@@ -145,51 +141,104 @@ Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, 
 
 *Nota*: Esta representação permite ao algoritmo avaliar não apenas o custo imediato, mas também a viabilidade futura (ex: evitar atribuir um pedido a um veículo que ficaria com autonomia negativa).
 
+=== Estado Inicial ($S_0$)
+
+O estado inicial da simulação é configurado deterministicamente no arranque do sistema:
+
+- **Atribuições Vazias**: $forall v in V: A[v] = emptyset$ — todos os 10 veículos começam livres, sem pedidos atribuídos.
+- **Backlog Vazio**: $B = emptyset$ — não existem pedidos pendentes no instante $t = 0$.
+- **Frota Posicionada**: Cada veículo é colocado numa posição aleatória do grafo de Braga, determinada pela seed `42`. As posições são nós válidos da rede rodoviária.
+- **Autonomia Aleatória**: Todos os veículos iniciam com o depósito/bateria com autonomia aleatória:
+  - Veículos a combustão: 600-900 km (conforme especificação do veículo)
+  - Veículos elétricos: 200-420 km (conforme especificação do veículo)
+- **Tempo Simulado**: $t_0 = $ 00:00 do primeiro dia de simulação.
+
+Formalmente: $S_0 = ({v_i -> emptyset}_(i=1)^(10), emptyset, {"pos": "random"(42), "autonomia": "random"(42), "tempo": t_0})$
+
+=== Estado Objetivo ($S^*$)
+
+Ao contrário de problemas de procura clássicos (como o puzzle de 8 peças ou navegação ponto-a-ponto), este problema de gestão de frota é um *problema de otimização contínua e dinâmica*. Não existe um estado objetivo discreto que, uma vez atingido, termine a execução.
+
+Em vez disso, o objetivo é definido como a *minimização contínua* da função de energia ao longo do tempo:
+
+$ S^* = arg min_S E(S) quad forall t $
+
+*Características do Estado Objetivo*:
+
+1. **Não-Terminal**: O sistema opera indefinidamente, processando novos pedidos à medida que chegam. Nunca existe um "estado final" onde o problema está "resolvido".
+
+2. **Ótimo Local vs. Global**: Em cada instante $t$, procuramos o estado $S_t^*$ que minimiza $E(S_t)$. Contudo, decisões ótimas locais podem não ser globalmente ótimas (ex: aceitar um pedido agora pode impedir aceitar um VIP que chegará em 5 minutos).
+
+3. **Satisfação de Restrições**: Um estado é considerado *válido* se:
+   - $forall v: "autonomia"_"final"(v) >= 0$ (nenhum veículo fica sem combustível/bateria)
+   - $forall v: "passageiros"(A[v]) <= "capacidade"(v)$ (capacidade respeitada)
+   - Minimização do backlog $|B|$ (pedidos atendidos atempadamente)
+
+4. **Critério Prático de Sucesso**: Na prática, consideramos que o sistema atinge um "bom estado" quando:
+   - Taxa de pedidos falhados < 15%
+   - Tempo médio de espera < 15 minutos
+   - Lucro operacional positivo
+
 == Operadores (Espaço de Ações)
 
 Para navegar no espaço de estados e encontrar soluções melhores, definimos cinco operadores que modificam o estado $S$ para gerar um estado vizinho $S'$:
 
-1.  **Assign(v, r)**: Retira um pedido $r$ do Backlog ($B$) e atribui-o a um veículo livre $v$.
-2.  **Unassign(v)**: Remove a atribuição atual de um veículo $v$, devolvendo o pedido ao Backlog ($B$). Útil para tornar veículos disponíveis de forma a conseguirem ser atribuidos a pedidos com uma prioridade superior que possam surgir.
-3.  **Swap(v1, v2)**: Troca os pedidos atribuídos entre dois veículos $v_1$ e $v_2$. Este operador permite otimizar a frota trocando, por exemplo, um pedido de curta distância de um veículo a combustão para um elétrico, e vice-versa.
-4.  **Move(v_src, v_dst)**: Move um pedido de um veículo ocupado para um livre.
-5.  **Replace(v, r_new)**: Substitui o pedido atual de um veículo por um do backlog.
+1.  *Assign(v, r)*: Retira um pedido $r$ do Backlog ($B$) e atribui-o a um veículo livre $v$.
+2.  *Unassign(v)*: Remove a atribuição atual de um veículo $v$, devolvendo o pedido ao Backlog ($B$). Útil para tornar veículos disponíveis de forma a conseguirem ser atribuidos a pedidos com uma prioridade superior que possam surgir.
+3.  *Swap(v1, v2)*: Troca os pedidos atribuídos entre dois veículos $v_1$ e $v_2$. Este operador permite otimizar a frota trocando, por exemplo, um pedido de curta distância de um veículo a combustão para um elétrico, e vice-versa.
+4.  *Move(v_src, v_dst)*: Move um pedido de um veículo ocupado para um livre.
+5.  *Replace(v, r_new)*: Substitui o pedido atual de um veículo por um da fila de espera.
 
-== Teste Objetivo e Função de Custo (E)
+== Teste Objetivo e Função de Custo
 
 Sendo um problema de otimização, o "Teste Objetivo" não é binário (atingiu/não atingiu), mas sim a minimização de uma Função de Energia (Custo) Global $E(S)$. O algoritmo procura $S^*$ tal que $E(S^*) <= E(S), forall S$.
 
-A função de avaliação multiobjetivo é definida como:
-$ E(S) = sum_(v in "Frota") C_"op"(v) + sum_(r in "Backlog") C_"espera"(r) + P_"viabilidade" $
+=== Função de Energia Global
+
+A função de avaliação do estado completo é:
+$ E(S) = sum_(v in "Frota") C(v, A[v]) + sum_(r in "Backlog") C_"espera"(r) + P_"viabilidade" $
+
+Onde $C(v, A[v])$ é o custo de atribuição do veículo $v$ ao seu pedido atual, $C_"espera"(r)$ é a penalização por pedidos na fila, e $P_"viabilidade"$ são restrições que impossibilitam o estado.
+
+=== Custo de Atribuição Individual
+
+O custo de atribuir um veículo $v$ a um pedido $r$ é composto por 8 fatores:
+
+$ C(v, r) = C_"tempo" + C_"espera" + C_"ambiente" + C_"capacidade" + C_"bateria" + C_"logística" + C_"oportunidade" + C_"lucro" $
 
 #figure(
   table(
-    columns: (auto, auto, 1.8fr, 2.5fr),
-    align: (center, center, left, left),
+    columns: (auto, 2fr, auto),
+    align: (left, left, center),
     stroke: 0.5pt + gray,
     fill: (row, col) => if row == 0 { luma(230) } else if calc.odd(row) { luma(250) } else { white },
-    
-    [*Peso*],       [*Constante Código*], [*Valor*],      [*Significado / Objetivo*],
-    [w₁],           [`WEIGHT_AGE`],             [4.0],         [Penaliza tempo de espera dos pedidos],
-    [w₂],           [`WEIGHT_ISOLATION`],       [1.0],         [Penaliza km percorridos longe de hotspots],
-    [w₃],           [`WEIGHT_PROFIT`],          [10.0],        [Importância do lucro],
-    [w₄],           [`BACKLOG_BASE_PENALTY`],   [160.0],       [Penalização severa por deixar pedidos na fila],
-    [*Outras*], [], [], [],
-    [Eco],          [`ENV_MISMATCH`],           [15.0 / km],   [Uso de veículo a combustão em pedido “Eco”],
-    [Bateria],      [`WEIGHT_BATTERY`],         [20.0],        [Fator de risco por bateria fraca (\<30km)],
+    [*Componente*], [*Descrição*], [*Peso*],
+    [$C_"tempo"$], [Tempo de viagem até ao cliente (via A\*)], [1.0],
+    [$C_"espera"$], [Bónus negativo por tempo de espera e prioridade do pedido], [4.0 / 30.0],
+    [$C_"ambiente"$], [Penalização se veículo a combustão atende pedido ecológico], [15.0/km],
+    [$C_"capacidade"$], [Penalização por lugares não utilizados (desperdício)], [0.5/lugar],
+    [$C_"bateria"$], [Risco se autonomia restante < 30km], [20.0],
+    [$C_"logística"$], [Distância a postos de abastecimento e hotspots após entrega], [0.5 / 1.0],
+    [$C_"oportunidade"$], [EVs em pedidos não-eco quando há pedidos eco no backlog], [50.0],
+    [$C_"lucro"$], [Ajuste baseado no lucro projetado (negativo = mais atrativo)], [10.0],
   ),
-  caption: [Pesos e Penalizações da Função de Custo],
-)
+  caption: [Componentes da Função de Custo de Atribuição],
+) <tab:custo-atribuicao>
 
-Onde:
+=== Penalização da Fila de Espera
 
-- $C_"op"(v)$ (**Custo Operacional**): Inclui o tempo de viagem (calculado via A\*), distância percorrida e o custo monetário da energia (mais baixo para EVs, mais alto para combustão).
-- $C_"espera"(r)$ (**Penalização de Backlog**): Custo elevado para pedidos que permanecem na fila de espera, calculado com base na prioridade e tempo de espera:
-  - $"Prio"$ (Prioridade): Nível de urgência do pedido, numa escala de 1 (normal) a 5 (VIP).
-  - $"Age"$ (Tempo de Espera): Tempo decorrido desde a criação do pedido, em minutos ($"Age" = t_"atual" - t_"criação"$).
-  - Fórmula implementada: $C_"backlog" = 160 + ("Prio"^2 times 30) + ("Age" times 8)$.
-  - O termo $"Prio"^2$ garante que pedidos VIP (prioridade 5) têm um custo 25× maior que pedidos normais (prioridade 1).
-- $P_"viabilidade"$ (**Penalizações**): Um valor proibitivo ($infinity$) aplicado se o estado projetado $V$ não cumprir as restrições (ex: autonomia final < 0 ou capacidade de passageiros insuficiente).
+Pedidos que permanecem na fila de espera incorrem num custo crescente:
+$ C_"espera"(r) = 160 + ("Prio"^2 times 30) + ("Age" times 8) $
+
+- $"Prio"$: Prioridade do pedido (1-5). O termo quadrático garante que VIPs (prio 5) custam 25× mais que normais (prio 1).
+- $"Age"$: Tempo de espera em minutos desde a criação do pedido.
+
+=== Restrições de Viabilidade
+
+Um estado é considerado inválido ($P_"viabilidade" = infinity$) se:
+- Autonomia final de qualquer veículo < 0 (ficaria sem combustível/bateria)
+- Capacidade de passageiros insuficiente
+- Impossibilidade de chegar a um posto de abastecimento após a entrega
 
 == Dinâmica de Execução
 
@@ -226,7 +275,7 @@ Isto significa que:
     stroke: 0.5pt + gray,
     fill: (row, col) => if row == 0 { luma(230) } else { white },
     [*Componente*], [*Seed*], [*O que controla*],
-    [Gerador de Pedidos], [`12345`], [Intervalos de chegada, origens/destinos, prioridades, preferências ecológicas],
+    [Gerador de Pedidos], [`12345`], [Intervalos de chegada, origens/destinos (incluindo hotspots), prioridades, preferências ecológicas],
     [Criação da Frota], [`42`], [Posições iniciais dos 10 veículos no mapa],
     [Trânsito (Perlin)], [`42`], [Padrões espaciais de congestionamento via ruído 3D],
     [Meteorologia (Perlin)], [`42`], [Transições de clima (Sol, Chuva, Tempestade)],
@@ -304,6 +353,11 @@ A taxa de chegada $lambda(t)$ varia ao longo do dia, calculada como: $lambda(t) 
 == Ambiente de Simulação
 Utilizamos um mapa real da cidade de Braga obtido via `OSMnx` e serializado em `braga_map_cache.pkl`.
 
+#figure(
+  image("Braga.PNG"),
+    caption: [Grafo da cidade de Braga (obtido através do OSMnx)]
+)
+
 === Grafo de Navegação
 Os nós representam intersecções e as arestas segmentos de estrada. As distâncias são calculadas via fórmula de Haversine (distância na esfera terrestre), permitindo navegação precisa no ambiente urbano.
 
@@ -336,24 +390,18 @@ O valor de *noise* é normalizado para [0, 1] a partir do output do Perlin.
 A distribuição de pedidos não é uniforme. Implementamos um sistema de **18 Hotspots** que modela zonas de alta procura na cidade de Braga:
 
 **Principais Hotspots (por categoria)**:
-- *Educação*: Universidade do Minho (peso 2.0), Escola Sá de Miranda (peso 1.1), Colégio D. Diogo de Sousa (peso 1.0)
-- *Transportes*: Estação CP (peso 1.6, ativa 06-09h, 16-20h, 21-23h)
-- *Comercial*: Braga Parque (peso 2.2), Nova Arcada (peso 1.8), Minho Center (peso 1.3)
-- *Saúde*: Hospital de Braga (peso 1.9, ativa 24h)
-- *Lazer*: Centro Histórico (peso 2.0), Bares da Sé (peso 2.3, ativa 20-04h), Altice Fórum (peso 3.0), Estádio Municipal (peso 3.5)
-- *Tecnologia*: INL - Nanotecnologia (peso 1.4)
-- *Industrial*: Parque Industrial (peso 1.6)
-
-**Padrões de Geração de Pedidos**:
-- 40%: Hotspot → Destino Aleatório
-- 30%: Origem Aleatória → Hotspot
-- 20%: Hotspot → Hotspot
-- 10%: Aleatório → Aleatório
+- *Educação*: Universidade do Minho, Escola Sá de Miranda, Colégio D. Diogo de Sousa
+- *Transportes*: Estação CP
+- *Comercial*: Braga Parque, Nova Arcada, Minho Center
+- *Saúde*: Hospital de Braga
+- *Lazer*: Centro Histórico, Bares da Sé, Altice Fórum, Estádio Municipal
+- *Tecnologia*: INL - Nanotecnologia
+- *Industrial*: Parque Industrial
 
 Este sistema garante que os pedidos se concentram em zonas realistas (universidades de manhã, bares à noite, hospital 24h, etc.).
 
 === Falhas de Infraestrutura
-As estações de carregamento (EV) e de abastecimento (combustão) podem falhar estocasticamente:
+As estações de carregamento (EV) e de abastecimento (combustão) podem falhar:
 - **Probabilidade de Falha**: 0.01% por tick de simulação
 - **Tempo de Recuperação**: 120 minutos (2 horas)
 - **Impacto**: Veículos precisam de desviar para estações alternativas, aumentando custos operacionais
@@ -361,38 +409,33 @@ As estações de carregamento (EV) e de abastecimento (combustão) podem falhar 
 == Agentes (Veículos)
 A frota é heterogénea, composta por veículos com atributos distintos. A configuração padrão inclui:
 
-=== Veículos a Combustão (Gas)
-- **Quantidade**: 5 veículos (frota fixa)
-- **Autonomia**: Entre 600-900 km
-- **Tempo de Reabastecimento**: 5 minutos
-- **Custo Operacional**: €0.12/km (combustível + manutenção)
-- **Emissões**: 87g CO₂/km (fonte: ACP Portugal, média nacional 2024)
-- **Vantagens**: Alta autonomia, reabastecimento rápido
-- **Desvantagens**: Custo elevado, poluente
-
-=== Veículos Elétricos (EV)
-- **Quantidade**: 5 veículos (frota fixa)
-- **Autonomia**: Entre 200-420 km
-- **Tempo de Recarga**: 
-  - Nível 1 (lento): 45-60 minutos
-  - Nível 2 (rápido): 20-30 minutos
-- **Custo Operacional**: €0.04/km (eletricidade)
-- **Emissões**: 0g CO₂/km (localmente)
-- **Vantagens**: Custo muito reduzido, zero emissões locais
-- **Desvantagens**: Autonomia limitada, tempo de recarga elevado
+#figure(
+  table(
+    columns: (auto, 1fr, 1fr),
+    align: (left, center, center),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else if calc.odd(row) { luma(250) } else { white },
+    
+    [*Característica*], [*Combustão (Gas)*], [*Elétrico (EV)*],
+    [Quantidade], [5 veículos], [5 veículos],
+    [Autonomia], [600-900 km], [200-420 km],
+    [Tempo de Recarga], [5 minutos], [Lento: 45-60 min \ Rápido: 20-30 min],
+    [Custo Operacional], [€0.12/km], [€0.04/km],
+    [Emissões CO₂#footnote[Fonte: ACP Portugal, média nacional 2024]], [87g/km], [0g/km (local)],
+    [Vantagens], [Alta autonomia, \ reabastecimento rápido], [Custo reduzido, \ zero emissões locais],
+    [Desvantagens], [Custo elevado, \ poluente], [Autonomia limitada, \ recarga demorada],
+  ),
+  caption: [Comparação entre Tipos de Veículos da Frota],
+)
 
 === Gestão de Bateria/Combustível
 O sistema implementa uma lógica de gestão preventiva:
-- **Limiar Crítico para Recarga**: Quando a autonomia restante \< 50 km (`LOW_AUTONOMY_THRESHOLD`), o veículo é automaticamente enviado para uma estação.
+- **Limiar Crítico para Recarga**: Quando a autonomia restante \< 50 km, o veículo é automaticamente enviado para uma estação se não tiver nenhum pedido capaz de realizar.
 - **Penalização na Função de Custo**: Quando a autonomia \< 30 km, a função de custo aplica uma penalização quadrática: 
   $P_"bateria" = W_"bateria" times ((30 - "autonomia") / 30)^2$
 - **Tempo de Recarga**:
   - *Veículos a combustão*: Reabastecimento fixo de 5 minutos.
-  - *Veículos elétricos*: Recarga proporcional à taxa da estação (ex: 300 km/h → ~20-30 min para carga completa).
-
-**Composição Detalhada da Frota (10 veículos)**:
-- **EVs** (5 total): 1×3 pax (250km), 2×4 pax (300-350km), 2×7 pax (380-420km)
-- **Gas** (5 total): 1×3 pax (600km), 2×4 pax (700-750km), 2×7 pax (800-900km)
+  - *Veículos elétricos*: Recarga proporcional à taxa da estação.
 
 = Algoritmos Desenvolvidos
 
@@ -410,39 +453,25 @@ Para mover os veículos no mapa, implementamos três estratégias:
 3.  **A\* (A-Star)**:
     - *Como funciona?*: Combina o custo real já percorrido ($g(n)$) com uma estimativa da distância que falta ($h(n)$).
     - *Heurística*: Usamos o **tempo de viagem em linha reta** à velocidade máxima como estimativa admissível:
-      $h(n) = "distância_Haversine"(n, "destino") / 120 "km/h"$
+      $h(n) = "distância_Haversine"(n, "destino") / (2 "km/min")$
     - *Por que é o melhor?*: Como a estimativa é admissível (nunca sobrestima o custo real), o A\* garante matematicamente que encontra o caminho mais rápido possível.
-    - *Complexidade*: Temporal e espacial $O(b^d)$, onde $b$ é o fator de ramificação e $d$ a profundidade da solução.
-
-#figure(
-  table(
-    columns: (auto, auto, auto, auto),
-    align: center,
-    stroke: 0.5pt + gray,
-    fill: (row, col) => if row == 0 { luma(230) } else { white },
-    [*Algoritmo*], [*Complexidade Temporal*], [*Complexidade Espacial*], [*Ótimo?*],
-    [BFS], [$O(b^d)$], [$O(b^d)$], [Não (em distância)],
-    [Greedy], [$O(b^m)$], [$O(b^m)$], [Não],
-    [A\*], [$O(b^d)$], [$O(b^d)$], [Sim],
-  ),
-  caption: [Comparação Teórica dos Algoritmos de Procura],
-)
 
 == Algoritmos de Atribuição (Assignment)
 O problema de atribuir $N$ veículos a $M$ pedidos é combinatório.
 
 1.  **Greedy Assignment**:
     - *Como funciona?*: Faz a combinação mais barata imediata.
-    - *Problema*: É "míope".
+    - *Problema*: Não encontra a combinação ótima, pois descobre uma combinação e assume esta como resultado final.
 
 2.  **Hill Climbing**:
-    - *Como funciona?*: Tenta fazer pequenas trocas (*Swap*, *Move*, ...) numa solução inicial. Se melhorar, aceita.
+    - *Como funciona?*: Tenta fazer trocas numa solução inicial. Se melhorar, aceita.
+     - Operadores de Vizinhança: Assign, Unassign, Swap, Move, Replace
     - *Problema*: Fica preso em "mínimos locais".
 
 3.  **Simulated Annealing**:
-    -  *Como funciona?*: Algoritmo de otimização estocástica inspirado no processo físico de recozimento de metais. No início (alta temperatura) aceita soluções piores probabilisticamente para explorar o espaço. À medida que "arrefece", foca-se em melhorar a solução.
+    -  *Como funciona?*: No início (alta temperatura) aceita soluções piores para explorar o espaço. À medida que "arrefece", foca-se em melhorar a solução.
     - *Parâmetros Implementados*:
-      - Temperatura Inicial ($T_0$): 250.0 (aumenta para 450.0 quando há pedidos VIP ou sobrecarga)
+      - Temperatura Inicial ($T_0$): 250.0 (aumenta para 450.0 quando há pedidos VIP)
       - Fator de Arrefecimento ($alpha$): 0.95
       - Critério de Aceitação: $P("aceitar") = e^(-Delta E / T)$
       - Operadores de Vizinhança: Assign, Unassign, Swap, Move, Replace
@@ -453,27 +482,63 @@ O problema de atribuir $N$ veículos a $M$ pedidos é combinatório.
 
 A escolha do **Simulated Annealing** como algoritmo principal de atribuição resultou de uma análise cuidadosa das características do problema:
 
-1. **Espaço de Estados Discreto e Combinatório**: O problema de atribuir $N$ veículos a $M$ pedidos gera um espaço de $(M+1)^N$ estados possíveis. Para 10 veículos e 20 pedidos, isto ultrapassa $10^{13}$ combinações, tornando a procura exaustiva impraticável.
+1. **Espaço de Estados Discreto e Combinatório**: O problema de atribuir $N$ veículos a $M$ pedidos gera um espaço de $(M+1)^N$ estados possíveis (cada veículo pode estar livre ou atribuído a qualquer um dos $M$ pedidos).
+   
+   *Cálculo para o nosso caso* (10 veículos, 20 pedidos pendentes):
+   $ |S| = (20 + 1)^10 = 21^10  approx 1.66 times 10^13 $
 
-2. **Paisagem de Custos Multimodal**: A função de custo do nosso problema possui múltiplos mínimos locais devido às interações entre restrições (autonomia, capacidade, preferências ecológicas). Algoritmos puramente greedy ou hill climbing ficam facilmente presos nestas "armadilhas".
+      Se um computador avaliasse 1 milhão de estados por segundo, demoraria **mais de 500 anos** a explorar todas as combinações. Isto torna a procura exaustiva completamente impraticável, justificando o uso de Simulated Annealing.
+
+
+2.  A função de custo do nosso problema possui múltiplos mínimos locais devido às interações entre restrições (autonomia, capacidade, preferências ecológicas). Algoritmos puramente greedy ou hill climbing ficam facilmente presos nos mínimos locais.
 
 3. **Natureza Dinâmica do Problema**: Como novos pedidos chegam continuamente e o estado dos veículos muda (bateria, posição), o algoritmo é re-executado frequentemente. O SA adapta-se bem a este contexto porque cada execução parte de uma solução inicial diferente (estado atual), beneficiando da exploração aleatória inicial.
 
-4. **Compromisso Tempo-Qualidade**: Comparado com algoritmos exatos (ex: Branch and Bound), o SA oferece soluções de alta qualidade em tempo previsível. O parâmetro de temperatura dinâmica ($T_0 = 250$ ou $450$ para VIPs) permite ajustar automaticamente a exploração conforme a urgência.
+4. **Compromisso Tempo-Qualidade**: O Simulated Annealing oferece soluções de alta qualidade em tempo previsível. O parâmetro de temperatura dinâmica ($T_0 = 250$ ou $450$ para VIPs) permite ajustar automaticamente a exploração conforme a urgência.
 
 5. **Alternativas Consideradas**:
    - *Algoritmo Húngaro*: Ótimo mas $O(n^3)$ e não lida bem com restrições complexas (autonomia, preferências).
    - *Programação Linear Inteira*: Garantia de optimalidade mas demasiado lento para decisões em tempo real.
-   - *Algoritmos Genéticos*: Bons para otimização global mas requerem populações grandes e mais tempo de convergência.
 
-== Otimização da Atribuição de Pedidos (Lógica de Despacho)
+== Otimização da Atribuição de Pedidos
 
-A função `assign_pending_requests` é o componente central. O processo é executado nos seguintes passos:
+A função `assign_pending_requests` é o componente central do sistema de decisão. O processo implementa várias otimizações para garantir eficiência em tempo real.
 
-1. **Construção da Matriz de Custos**: Uma matriz $N times M$ onde cada célula representa o custo detalhado (via `calculate_detailed_cost`) para o veículo $i$ atender o pedido $j$.
-2. **Aplicação de Restrições (Pruning)**: Custos infinitos para capacidades insuficientes.
-3. **Resolução**: O algoritmo selecionado (Simulated Annealing) encontra a permutação que minimiza a soma da matriz.
-4. **Execução**: Aplica as atribuições, atualizando o estado dos veículos para `ON_WAY_TO_CLIENT`.
+=== Pipeline de Atribuição
+
+1. **Recolha de Candidatos**: Identifica veículos disponíveis e redirecionáveis (já a caminho de um cliente, mas que podem mudar de destino).
+
+2. **Construção da Matriz de Custos** ($N times M$): Cada célula $C[i,j]$ representa o custo de atribuir o veículo $i$ ao pedido $j$, calculado via `calculate_detailed_cost`.
+
+3. **Aplicação de Filtros (Pruning)**: Atribuições impossíveis recebem custo $infinity$:
+   - Capacidade insuficiente para passageiros
+   - Autonomia insuficiente para completar a viagem
+   - Impossibilidade de chegar a um posto após a entrega
+
+4. **Resolução via Meta-Heurística**: O Simulated Annealing encontra a configuração que minimiza a energia total.
+
+5. **Execução e Reatribuição**: Aplica as decisões, libertando veículos de tarefas anteriores se necessário.
+
+=== Otimizações Implementadas
+
+#figure(
+  table(
+    columns: (auto, 2fr),
+    align: (left, left),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else if calc.odd(row) { luma(250) } else { white },
+    [*Otimização*], [*Descrição*],
+    [Estimativa Heurística], [Na construção da matriz de custos, usamos distância de Haversine em vez de A\* completo. Reduz o tempo de $O(E log V)$ para $O(1)$ por par veículo-pedido. O A\* real é usado apenas na rota final.],
+    [Cache de Trânsito], [O `TrafficManager` mantém cache espacial de penalizações de trânsito, limpa a cada tick. Evita recalcular ruído de Perlin para posições próximas.],
+    [Cache de Hotspots], [Cada hotspot pré-calcula os nós próximos (`node_cache`) na inicialização. Acelera a seleção de origens/destinos.],
+    [Redirecionamento Dinâmico], [Veículos em estado `ON_WAY_TO_CLIENT` são incluídos na reavaliação. Permite trocar atribuições se surgir um pedido mais urgente.],
+    [Temperatura Adaptativa], [A temperatura inicial do SA aumenta de 250 para 450 quando há pedidos VIP (prioridade ≥ 4) ou backlog saturado.],
+    [Bónus de Estabilidade], [Manter a mesma atribuição dá um bónus de −5.0 no custo, evitando oscilações constantes (_jitter_) entre soluções equivalentes.],
+  ),
+  caption: [Otimizações Implementadas no Sistema de Atribuição],
+)
+
+A função de custo utilizada para preencher a matriz é detalhada na @tab:custo-atribuicao.
 
 = Metodologia de Testes e Resultados
 
@@ -484,24 +549,12 @@ Utilizámos um sistema de *benchmark* automatizado (`BenchmarkRunner`) que execu
 - **Operacionais**: Taxa de Ocupação, Tempo Médio de Espera, Km Vazios, Pedidos Falhados.
 - **Ambientais**: Emissões Totais de CO2.
 
-== Análise dos Resultados (Dados Reais)
+== Análise dos Resultados
 
 Os dados recolhidos mostram uma clara vantagem para os algoritmos informados e de otimização global.
 
-#figure(
-  table(
-    columns: (auto, auto, auto, auto, auto, auto, auto),
-    align: center,
-    stroke: 0.5pt + gray,
-    fill: (row, col) => if row == 0 { luma(230) } else { white },
-    [*Routing*], [*Assignment*], [*Lucro (€)*], [*Entregas*], [*Falhas*], [*Espera (min)*], [*CO2 (kg)*],
-    [BFS], [Greedy], [76 271], [11 183], [2 907], [15.87], [6 599],
-    [Greedy], [Hill Climbing], [76 414], [11 531], [2 559], [14.68], [6 131],
-    [A\*], [Greedy], [79 628], [11 613], [2 477], [13.22], [6 391],
-    [*A\**], [*Sim. Annealing*], [*79 348*], [*11 921*], [*2 168*], [*11.72*], [*6 029*],
-  ),
-  caption: [Comparação de Performance (28 dias de operação)],
-)
+// AVISO ADICIONAR RESULTADOS
+  #image("DadosBrutos.PNG")
 
 1.  **Eficiência do A\***: A combinação **A\* + Simulated Annealing** completou o maior número de pedidos (**11 921**), com o menor número de falhas (**2 168**). O A\* permite encontrar rotas mais rápidas, libertando os veículos mais cedo.
 2.  **Qualidade de Serviço**: O tempo médio de espera baixou drasticamente de 15.87 min (BFS) para **11.72 min** (A\* + SA).
@@ -511,6 +564,7 @@ Os dados recolhidos mostram uma clara vantagem para os algoritmos informados e d
 
 Esta secção mapeia explicitamente cada tarefa solicitada no enunciado à nossa implementação:
 
+// ATUALIZAR DADOS
 #figure(
   table(
     columns: (auto, 1fr),
@@ -521,26 +575,27 @@ Esta secção mapeia explicitamente cada tarefa solicitada no enunciado à nossa
     [*Tarefa*], [*Implementação*],
     
     [Formular o problema\ como procura], 
-    [✓ Definido como Otimização Combinatória Dinâmica com estado $S_t = (A, B, V)$, operadores (Assign, Swap, Move, etc.), e função de energia multiobjetivo (Secção "Formulação do Problema")],
+    [✓ Definido como Otimização Combinatória Dinâmica com estado $S_t = (A, B, V)$, operadores (Assign, Swap, Move, etc.), e função de energia multiobjetivo],
     
     [Representar cidade\ como grafo],
-    [✓ Grafo real de Braga via OSMnx, nós=intersecções, arestas=estradas com distâncias Haversine (Secção "Ambiente de Simulação")],
+    [✓ Grafo real de Braga via OSMnx, nós=intersecções, arestas=estradas com distâncias Haversine],
     
     [Desenvolver estratégias\ informadas e não\ informadas],
-    [✓ Implementados BFS (não informada), Greedy, A\\* (informadas). A\\* usa heurística $h(n) = d_"Haversine" / 120$ (Secção "Algoritmos de Navegação")],
+    [✓ Implementados BFS (não informada), Greedy, A\* (informadas).],
     
     [Implementar sistema\ de simulação dinâmica],
-    [✓ Simulador com chegadas de pedidos via Processo de Poisson, trânsito dinâmico (Perlin + Gaussianas), meteorologia, falhas de infraestrutura (Secções "Modelação", "Dinâmica de Execução")],
+    [✓ Simulador com chegadas de pedidos via Processo de Poisson, trânsito dinâmico (Perlin + Gaussianas), meteorologia, falhas de infraestrutura],
     
     [Avaliar eficiência\ com métricas],
-    [✓ Benchmark com 9 combinações de algoritmos, métricas: Lucro, Taxa de Ocupação, Tempo de Espera, km Vazios, CO2 (Secção "Resultados")],
+    [✓ Benchmark com 9 combinações de algoritmos, métricas: Lucro, Taxa de Ocupação, Tempo de Espera, km Vazios, CO2],
     
     [Simular condições\ dinâmicas],
-    [✓ Trânsito variável (picos de hora), meteorologia (Sol/Chuva/Tempestade), falhas de estações (0.01%/tick) (Secção "Ambiente de Simulação")],
+    [✓ Trânsito variável (picos de hora), meteorologia (Sol/Chuva/Tempestade), falhas de estações (0.01%/tick)],
   ),
   caption: [Correspondência Tarefa-Implementação],
 )
 
+// ATUALIZAR DADOS
 == Funcionalidades Extra Implementadas
 Além dos requisitos base, implementámos:
 
@@ -554,7 +609,7 @@ Além dos requisitos base, implementámos:
 
 5. **Benchmark Automatizado Paralelo**: Sistema de testes concorrentes (`ProcessPoolExecutor`) para comparar 9 configurações de algoritmos em 28 dias simulados.
 
-6. **Reprodutibilidade Total**: Seeds fixas (42) garantem que benchmarks são justos e replicáveis.
+6. **Reprodutibilidade Total**: Seeds fixas garantem que benchmarks são justos e replicáveis.
 
 = Conclusão e Reflexão
 

@@ -19,9 +19,6 @@ from Simulation.request_generator import RequestGenerator
 
 
 class Simulator:
-    # Simulation Constants
-    MAP_WIDTH = 20
-    MAP_HEIGHT = 20
     # Time constants
     SIM_TIME_PER_TICK = 1
     MINUTES_PER_HOUR = 60

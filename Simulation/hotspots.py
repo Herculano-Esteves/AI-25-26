@@ -220,20 +220,3 @@ class HotspotManager:
 
     def get_active_hotspots(self) -> List[Hotspot]:
         return [h for h in self.hotspots if h.is_active]
-
-    def get_random_node_from_active_hotspots(self) -> Optional[Node]:
-        """
-        Retorna um nó aleatório de um hotspot ativo (ponderado pelo weight).
-        Retorna None se nenhum estiver ativo.
-        """
-        active = self.get_active_hotspots()
-        if not active:
-            return None
-
-        # Escolha ponderada (ex: Centro tem mais peso que estação)
-        weights = [h.weight for h in active]
-        chosen_hotspot = random.choices(active, weights=weights, k=1)[0]
-
-        if chosen_hotspot.node_cache:
-            return random.choice(chosen_hotspot.node_cache)
-        return None

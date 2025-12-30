@@ -75,9 +75,8 @@ class TrafficManager:
 
         excess_traffic = raw_congestion - traffic_threshold
 
-        gain = rush_intensity * 5.0
 
-        penalty = excess_traffic * gain
+        penalty = excess_traffic * (rush_intensity * 5.0)
 
         return 1.0 + penalty
 

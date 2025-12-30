@@ -51,7 +51,7 @@ class MenuView:
         headers = {
             "id": ("ID", 35),
             "status": ("Estado", 85),
-            "autonomy": ("Bat.", 50),
+            "autonomy": ("Aut.", 50),
             "request": ("Req.", 35),
             "motor": ("Tipo", 50),
             "capacidade": ("Pax", 30),
@@ -227,9 +227,9 @@ class MenuView:
         cost_est_frame = ttk.LabelFrame(inner_frame, text="Estimativa de Custo (Atribuição)")
         cost_est_frame.pack(fill=tk.X, padx=10, pady=5)
 
-        cost_est_options = ["Heurística (Rápido)", "A* (Preciso)"]
+        cost_est_options = ["Distância", "A* (Preciso)"]
         self.cost_est_combo = ttk.Combobox(cost_est_frame, values=cost_est_options, state="readonly")
-        self.cost_est_combo.set("Heurística (Rápido)")
+        self.cost_est_combo.set("Distância")
         self.cost_est_combo.pack(fill=tk.X, padx=5, pady=5)
 
         def on_cost_est_change(event):

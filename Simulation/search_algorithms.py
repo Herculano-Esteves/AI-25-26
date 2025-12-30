@@ -37,7 +37,7 @@ def _heuristic_distance(a: Node, b: Node) -> float:
     distance_km = haversine_km(lon1, lat1, lon2, lat2)
 
     # Heuristic Admissibility
-    max_possible_speed_kmh = 120.0
+    max_possible_speed_kmh = 120.0 / 60
 
     return calculate_time_minutes(distance_km, max_possible_speed_kmh)
 
