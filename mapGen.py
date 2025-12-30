@@ -1,9 +1,8 @@
 import random
-from typing import List, Optional
+from typing import List
 from graph import CityGraph
 from models.node import Node
 from models.vehicle import Vehicle, Motor
-from models.request import Request
 from Simulation.search_algorithms import find_route, _heuristic_distance
 
 import osmnx as ox
@@ -285,14 +284,18 @@ def create_vehicle_fleet(
 
 
 def gas_ev_station_grant_existance(city_map: CityGraph):
+    """Garante que existe pelo menos uma estação de cada tipo."""
     all_nodes = list(city_map.nos)
+    rng = random.Random(42)  # Seed fixa para determinismo
+    
     if not any(n.energy_chargers > 0 for n in all_nodes):
-        no_a_converter = random.choice(all_nodes)
-        no_a_converter.energy_chargers = random.randint(2, 4)
+        no_a_converter = rng.choice(all_nodes)
+        no_a_converter.energy_chargers = rng.randint(2, 4)
         no_a_converter.energy_recharge_rate_kw = 50
         city_map.ev_stations.append(no_a_converter)
 
     if not any(n.gas_pumps > 0 for n in all_nodes):
-        no_a_converter = random.choice(all_nodes)
-        no_a_converter.gas_pumps = random.randint(2, 4)
+        no_a_converter = rng.choice(all_nodes)
+        no_a_converter.gas_pumps = rng.randint(2, 4)
         city_map.gas_stations.append(no_a_converter)
+

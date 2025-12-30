@@ -46,10 +46,11 @@ class TrafficManager:
 
         factor = self._calculate_heavy_math(grid_lon, grid_lat, current_time_block)
 
-        # Cache save
-        self._cache[cache_key] = factor * self.current_weather_penalty
+        # Cache save (com weather penalty)
+        cached_value = factor * self.current_weather_penalty
+        self._cache[cache_key] = cached_value
 
-        return factor
+        return cached_value
 
     def _calculate_heavy_math(self, lon: float, lat: float, time_minutes: float) -> float:
         rush_intensity = self._get_rush_intensity((time_minutes / 60.0) % 24)
