@@ -133,7 +133,7 @@ Ao contrário de um problema de navegação simples, o desafio aqui não é enco
 Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, onde:
 
 - **A (Atribuições)**: Um mapeamento $V -> R union {emptyset}$, onde $V$ é o conjunto de todos os veículos da frota e $R$ é o conjunto de pedidos por recolher. Se $A[v] = r$, significa que o veículo $v$ está a servir o pedido $r$. Se $A[v] = emptyset$, o veículo está livre.
-- **B (Backlog/Fila de Espera)**: O conjunto de pedidos pendentes $R_"pendentes"$ que foram recebidos mas ainda não foram recolhidos por nenhum veículo.
+- **B (Fila de Espera)**: O conjunto de pedidos pendentes $R_"pendentes"$ que foram recebidos mas ainda não foram recolhidos por nenhum veículo.
 - **V (Estado Projetado da Frota)**: Um vetor contendo o estado futuro estimado de cada veículo $v in V$ após cumprir a atribuição atual. Para cada veículo, projeta-se:
   - $"Posição"_"final"$: Localização após a entrega.
   - $"Autonomia"_"final"$: Autonomia restante estimada após a entrega.
@@ -146,7 +146,7 @@ Definimos o estado do sistema num instante $t$ como um tuplo $S_t = (A, B, V)$, 
 O estado inicial da simulação é configurado deterministicamente no arranque do sistema:
 
 - **Atribuições Vazias**: $forall v in V: A[v] = emptyset$ — todos os 10 veículos começam livres, sem pedidos atribuídos.
-- **Backlog Vazio**: $B = emptyset$ — não existem pedidos pendentes no instante $t = 0$.
+- **Fila de Espera Vazia**: $B = emptyset$ — não existem pedidos pendentes no instante $t = 0$.
 - **Frota Posicionada**: Cada veículo é colocado numa posição aleatória do grafo de Braga, determinada pela seed `42`. As posições são nós válidos da rede rodoviária.
 - **Autonomia Aleatória**: Todos os veículos iniciam com o depósito/bateria com autonomia aleatória:
   - Veículos a combustão: 600-900 km (conforme especificação do veículo)
@@ -172,7 +172,7 @@ $ S^* = arg min_S E(S) quad forall t $
 3. **Satisfação de Restrições**: Um estado é considerado *válido* se:
    - $forall v: "autonomia"_"final"(v) >= 0$ (nenhum veículo fica sem combustível/bateria)
    - $forall v: "passageiros"(A[v]) <= "capacidade"(v)$ (capacidade respeitada)
-   - Minimização do backlog $|B|$ (pedidos atendidos atempadamente)
+   - Minimização da fila de espera $|B|$ (pedidos atendidos atempadamente)
 
 4. **Critério Prático de Sucesso**: Na prática, consideramos que o sistema atinge um "bom estado" quando:
    - Taxa de pedidos falhados < 15%
@@ -181,13 +181,27 @@ $ S^* = arg min_S E(S) quad forall t $
 
 == Operadores (Espaço de Ações)
 
+Todas as ações que modificam o estado $S$ são tratadas como operadores. Dividimos em duas categorias: operadores de vizinhança (usados pelo algoritmo de otimização para explorar o espaço de soluções) e transições automáticas do ambiente (eventos que alteram o estado independentemente do algoritmo).
+
+=== Operadores de Vizinhança (Algoritmo)
+
 Para navegar no espaço de estados e encontrar soluções melhores, definimos cinco operadores que modificam o estado $S$ para gerar um estado vizinho $S'$:
 
-1.  *Assign(v, r)*: Retira um pedido $r$ do Backlog ($B$) e atribui-o a um veículo livre $v$.
-2.  *Unassign(v)*: Remove a atribuição atual de um veículo $v$, devolvendo o pedido ao Backlog ($B$). Útil para tornar veículos disponíveis de forma a conseguirem ser atribuidos a pedidos com uma prioridade superior que possam surgir.
+1.  *Assign(v, r)*: Retira um pedido $r$ da fila de espera ($B$) e atribui-o a um veículo livre $v$.
+2.  *Unassign(v)*: Remove a atribuição atual de um veículo $v$, devolvendo o pedido à fila de espera ($B$). Útil para tornar veículos disponíveis de forma a conseguirem ser atribuidos a pedidos com uma prioridade superior que possam surgir.
 3.  *Swap(v1, v2)*: Troca os pedidos atribuídos entre dois veículos $v_1$ e $v_2$. Este operador permite otimizar a frota trocando, por exemplo, um pedido de curta distância de um veículo a combustão para um elétrico, e vice-versa.
 4.  *Move(v_src, v_dst)*: Move um pedido de um veículo ocupado para um livre.
 5.  *Replace(v, r_new)*: Substitui o pedido atual de um veículo por um da fila de espera.
+
+=== Transições Automáticas do Ambiente
+
+Além dos operadores controlados pelo algoritmo, existem transições de estado do ambiente:
+
+1.  *Timeout(r)*: Remove um pedido $r$ da fila de espera ($B$) por expiração.
+2.  *CompleteTrip(v)*: Quando um veículo $v$ completa uma viagem, liberta-o ($A[v] = emptyset$).
+3.  *StartRecharge(v)*: Envia um veículo $v$ para uma estação de recarga. Altera o estado do veículo para indisponível.
+4.  *CompleteRecharge(v)*: Restaura a autonomia do veículo e torna-o novamente disponível para atribuição.
+5.  *NewRequest(r)*: Adiciona um novo pedido $r$ à fila de espera ($B$), o que obriga uma reavaliação do estado.
 
 == Teste Objetivo e Função de Custo
 
@@ -196,7 +210,7 @@ Sendo um problema de otimização, o "Teste Objetivo" não é binário (atingiu/
 === Função de Energia Global
 
 A função de avaliação do estado completo é:
-$ E(S) = sum_(v in "Frota") C(v, A[v]) + sum_(r in "Backlog") C_"espera"(r) + P_"viabilidade" $
+$ E(S) = sum_(v in "Frota") C(v, A[v]) + sum_(r in "Fila") C_"espera"(r) + P_"viabilidade" $
 
 Onde $C(v, A[v])$ é o custo de atribuição do veículo $v$ ao seu pedido atual, $C_"espera"(r)$ é a penalização por pedidos na fila, e $P_"viabilidade"$ são restrições que impossibilitam o estado.
 
@@ -219,7 +233,7 @@ $ C(v, r) = C_"tempo" + C_"espera" + C_"ambiente" + C_"capacidade" + C_"bateria"
     [$C_"capacidade"$], [Penalização por lugares não utilizados (desperdício)], [0.5/lugar],
     [$C_"bateria"$], [Risco se autonomia restante < 30km], [20.0],
     [$C_"logística"$], [Distância a postos de abastecimento e hotspots após entrega], [0.5 / 1.0],
-    [$C_"oportunidade"$], [EVs em pedidos não-eco quando há pedidos eco no backlog], [50.0],
+    [$C_"oportunidade"$], [EVs em pedidos não-eco quando há pedidos eco na fila de espera], [50.0],
     [$C_"lucro"$], [Ajuste baseado no lucro projetado (negativo = mais atrativo)], [10.0],
   ),
   caption: [Componentes da Função de Custo de Atribuição],
@@ -245,10 +259,7 @@ Um estado é considerado inválido ($P_"viabilidade" = infinity$) se:
 O algoritmo de procura não é executado apenas uma vez. O sistema opera com um planeamento contínuo podendo alterar decisões anteriores de acordo com novos pedidos ou alterações dinâmicas (ex: trocar pedidos já atribuídos a veículos ). O processo de procura é reiniciado sempre que ocorre um evento significativo no ambiente:
 - Chegada de um novo pedido.
 - Um veículo torna-se disponível (termina viagem ou recarga).
-- **Timeouts Escalonados**: O tempo máximo de espera depende da prioridade do cliente.
-  - Clientes normais (Prioridade 1) esperam até **30 minutos**.
-  - Clientes VIP (Prioridade 5) cancelam o pedido após apenas **10 minutos**.
-  - Fórmula: $"Timeout" = 30 - (("Prio" - 1) times 5)$.
+- **Timeouts Escalonados**: O tempo máximo de espera depende da prioridade do cliente (ver @sec:atributos-pedidos).
 
 Desta forma, o sistema adapta-se dinamicamente, reavaliando decisões anteriores se uma nova configuração apresentar menor custo global.
 
@@ -340,7 +351,7 @@ A taxa de chegada $lambda(t)$ varia ao longo do dia, calculada como: $lambda(t) 
   caption: [Taxa de Chegada de Pedidos por Período],
 )
 
-=== Atributos dos Pedidos
+=== Atributos dos Pedidos <sec:atributos-pedidos>
 
 - **Prioridade (1-5)**: VIP (prioridade 5) tem 20% de probabilidade durante picos, 5% noutros períodos. Prioridades 1-4 são uniformemente distribuídas.
 - **Preço**: $P = (2.50 + 0.80 times D) times M$, onde $D$ é a distância em km e $M=1.3$ para grupos >4 passageiros.
@@ -532,7 +543,7 @@ A função `assign_pending_requests` é o componente central do sistema de decis
     [Cache de Trânsito], [O `TrafficManager` mantém cache espacial de penalizações de trânsito, limpa a cada tick. Evita recalcular ruído de Perlin para posições próximas.],
     [Cache de Hotspots], [Cada hotspot pré-calcula os nós próximos (`node_cache`) na inicialização. Acelera a seleção de origens/destinos.],
     [Redirecionamento Dinâmico], [Veículos em estado `ON_WAY_TO_CLIENT` são incluídos na reavaliação. Permite trocar atribuições se surgir um pedido mais urgente.],
-    [Temperatura Adaptativa], [A temperatura inicial do SA aumenta de 250 para 450 quando há pedidos VIP (prioridade ≥ 4) ou backlog saturado.],
+    [Temperatura Adaptativa], [A temperatura inicial do SA aumenta de 250 para 450 quando há pedidos VIP (prioridade ≥ 4) ou fila de espera saturada.],
     [Bónus de Estabilidade], [Manter a mesma atribuição dá um bónus de −5.0 no custo, evitando oscilações constantes (_jitter_) entre soluções equivalentes.],
   ),
   caption: [Otimizações Implementadas no Sistema de Atribuição],
@@ -599,17 +610,17 @@ Esta secção mapeia explicitamente cada tarefa solicitada no enunciado à nossa
 == Funcionalidades Extra Implementadas
 Além dos requisitos base, implementámos:
 
-1. **Hotspots Geográficos**: Sistema de zonas de alta densidade (Universidades, Estação, Hospital) com ativação temporal e ponderação, modelando padrões realistas de procura urbana.
+1. **Hotspots Geográficos**: Sistema de 18 zonas de alta densidade com ativação temporal e ponderação.
 
-2. **Gestão Preventiva de Bateria**: Penalização quadrática para autonomia \< 30 km, forçando planeamento antecipado de recargas.
+2. **Gestão Preventiva de Bateria**: Penalização quadrática para baixa autonomia.
 
-3. **Sistema de Prioridade Escalonado**: Timeouts diferenciados (VIP: 10 min, Normal: 30 min), simulando clientes premium vs. standard.
+3. **Sistema de Prioridade Escalonado**: Timeouts diferenciados por prioridade.
 
-4. **Trânsito com Picos Realistas**: Modelagem de congestionamento via curvas Gaussianas + Ruído de Perlin 3D, simulando variação espacial e temporal do tráfego.
+4. **Trânsito Dinâmico**: Curvas Gaussianas + Ruído de Perlin 3D.
 
 5. **Benchmark Automatizado Paralelo**: Sistema de testes concorrentes (`ProcessPoolExecutor`) para comparar 9 configurações de algoritmos em 28 dias simulados.
 
-6. **Reprodutibilidade Total**: Seeds fixas garantem que benchmarks são justos e replicáveis.
+6. **Reprodutibilidade**: Seeds fixas garantem que benchmarks são justos e replicáveis.
 
 = Conclusão e Reflexão
 
