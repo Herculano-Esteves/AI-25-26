@@ -398,44 +398,94 @@ A taxa de chegada $lambda(t)$ varia ao longo do dia: $lambda(t) = 0.2 + ("intens
 
 = Algoritmos Desenvolvidos
 
-== Algoritmos de Navegação (Pathfinding)
-Para mover os veículos no mapa, implementamos três estratégias:
+== Subproblema de Procura de Caminho
 
-1.  **Breadth-First Search (BFS)**:
-    - *Como funciona?*: Explora camada por camada.
-    - *Análise*: Garante o caminho com menos "saltos", mas ignora a distância real. Ineficiente para navegação rodoviária.
+Considere-se o grafo da cidade de Braga, um nó de origem $o$ (posição atual do veículo) e um nó de destino $d$ (local de recolha do cliente). Este subproblema pode ser formulado do seguinte modo:
 
-2.  **Greedy Best-First Search**:
-    - *Como funciona?*: Escolhe sempre a estrada que parece ir mais diretamente para o destino (menor heurística $h(n)$).
-    - *Análise*: Rápido, mas não garante o caminho ótimo.
+*Tipo de problema*: Procura de caminho num grafo com custos não-negativos.
 
-3.  **A\* (A-Star)**:
-    - *Como funciona?*: Combina o custo real já percorrido ($g(n)$) com uma estimativa da distância que falta ($h(n)$).
-    - *Heurística*: Usamos o **tempo de viagem em linha reta** à velocidade máxima como estimativa admissível:
-      $h(n) = "distância_Haversine"(n, "destino") / (2 "km/min")$
-    - *Por que é o melhor?*: Como a estimativa é admissível (nunca sobrestima o custo real), o A\* garante matematicamente que encontra o caminho mais rápido possível.
+*Estado inicial*: $E_0 = (o)$, posição atual do veículo.
+
+*Operador de mudança de estado*: Seja $n'$ um nó adjacente a $n$. O custo de viajar entre $n$ e $n'$ é dado por:
+$ c_(n arrow n') = d(n, n') / v times (1 + m(n, n')) $
+onde $d$ calcula a distância (Haversine), $v$ é a velocidade permitida na via, e $m$ é o fator de trânsito.
+
+*Estado final*: $E_f = (d)$, chegada ao destino.
+
+*Custo da solução*: Soma dos tempos de viagem em cada aresta percorrida.
+
+=== Algoritmos Implementados
+
+Para resolver este subproblema, implementamos três algoritmos:
+
+#figure(
+  table(
+    columns: (auto, 2fr, auto),
+    align: (left, left, center),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else { white },
+    [*Algoritmo*], [*Descrição*], [*Tipo*],
+    [BFS], [Explora camada por camada. Garante menor número de "saltos".], [Não Informada],
+    [Greedy], [Escolhe sempre o nó com menor heurística $h(n)$.], [Informada],
+    [A\*], [Minimiza $f(n) = g(n) + h(n)$. Garante caminho ótimo se $h$ admissível.], [Informada],
+  ),
+  caption: [Algoritmos de Procura de Caminho Implementados],
+)
+
+*Heurística utilizada*: Tempo de viagem em linha reta à velocidade máxima (120 km/h):
+$ h(n) = "Haversine"(n, d) / 2 "km/min" $
+
+Esta heurística é admissível porque nunca sobrestima o custo real — nenhum veículo pode viajar mais rápido que 120 km/h.
+
+=== Comparação dos Algoritmos de Procura
+
+Para comparar o desempenho e a qualidade das soluções, os algoritmos foram testados em 100 rotas aleatórias no grafo de Braga. Os resultados agregados são:
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto, auto),
+    align: (left, right, right, right, right),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else if row == 3 { luma(235) } else { white },
+    [*Algoritmo*], [*Σ Tempo (ms)*], [*Σ Custo (min)*], [*Σ Nós Solução*], [*Σ Nós Visitados*],
+    [BFS], [609.9], [1482.5], [4632], [454619],
+    [Greedy], [37.8], [1637.1], [7612], [16179],
+    [A\*], [1631.8], [1078.6], [6478], [327066],
+  ),
+  caption: [Somas das Métricas de Procura (100 rotas de teste)],
+) <tab:search-comparison>
+
+*Análise dos Resultados*:
+- O *A\** encontra o caminho ótimo (menor custo: 1079 min, −27% vs. BFS) mas é o mais lento (1632ms) e visita muitos nós, demonstrando a exploração exaustiva necessária para garantir optimalidade.
+- O *BFS* é mais rápido que o A\* mas produz soluções subótimas (+37% custo) porque minimiza arestas, não tempo.
+- O *Greedy* é o mais rápido (38ms) com poucos nós visitados, mas produz as piores soluções (+52% custo vs. A\*) porque ignora o custo já percorrido.
 
 == Algoritmos de Atribuição (Assignment)
-O problema de atribuir $N$ veículos a $M$ pedidos é combinatório.
 
-1.  **Greedy Assignment**:
-    - *Como funciona?*: Faz a combinação mais barata imediata.
-    - *Problema*: Não encontra a combinação ótima, pois descobre uma combinação e assume esta como resultado final.
+O problema de atribuir $N$ veículos a $M$ pedidos é combinatório. Implementamos três estratégias:
 
-2.  **Hill Climbing**:
-    - *Como funciona?*: Tenta fazer trocas numa solução inicial. Se melhorar, aceita.
-     - Operadores de Vizinhança: Assign, Unassign, Swap, Move, Replace
-    - *Problema*: Fica preso em "mínimos locais".
+#figure(
+  table(
+    columns: (auto, 2fr, 1.5fr),
+    align: (left, left, left),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else { white },
+    [*Algoritmo*], [*Descrição*], [*Limitação*],
+    [Greedy], [Faz a combinação mais barata imediata.], [Ótimo local, não global],
+    [Hill Climbing], [Tenta trocas a partir de solução inicial. Aceita se melhorar.], [Fica preso em mínimos locais],
+    [Simulated Annealing], [Aceita soluções piores com probabilidade $e^(-Delta E / T)$ para escapar mínimos locais.], [Mais lento, requer afinação],
+  ),
+  caption: [Algoritmos de Atribuição Implementados],
+)
 
-3.  **Simulated Annealing**:
-    -  *Como funciona?*: No início (alta temperatura) aceita soluções piores para explorar o espaço. À medida que "arrefece", foca-se em melhorar a solução.
-    - *Parâmetros Implementados*:
-      - Temperatura Inicial ($T_0$): 250.0 (aumenta para 450.0 quando há pedidos VIP)
-      - Fator de Arrefecimento ($alpha$): 0.95
-      - Critério de Aceitação: $P("aceitar") = e^(-Delta E / T)$
-      - Operadores de Vizinhança: Assign, Unassign, Swap, Move, Replace
-    - *Vantagem*: Escapa aos mínimos locais, encontrando soluções globais melhores para a gestão da frota a longo prazo.
-    - *Desvantagem*: Mais lento que greedy, requer afinação de parâmetros.
+=== Simulated Annealing — Parâmetros
+
+O Simulated Annealing foi escolhido como algoritmo principal devido à natureza combinatória do problema:
+
+- *Temperatura Inicial* ($T_0$): 250.0 (aumenta para 450.0 quando há pedidos VIP)
+- *Fator de Arrefecimento* ($alpha$): 0.95
+- *Critério de Aceitação*: $P("aceitar") = e^(-Delta E / T)$
+- *Operadores de Vizinhança*: Assign, Unassign, Swap, Move, Replace
 
 === Justificação das Escolhas de Design
 
@@ -443,7 +493,7 @@ A escolha do **Simulated Annealing** como algoritmo principal de atribuição re
 
 1. **Espaço de Estados Discreto e Combinatório**: O problema de atribuir $N$ veículos a $M$ pedidos gera um espaço de $(M+1)^N$ estados possíveis (cada veículo pode estar livre ou atribuído a qualquer um dos $M$ pedidos).
    
-   *Cálculo para o nosso caso* (10 veículos, 20 pedidos pendentes):
+   *Exemplo de cálculo para o nosso caso* (10 veículos, 20 pedidos pendentes):
    $ |S| = (20 + 1)^10 = 21^10  approx 1.66 times 10^13 $
 
       Se um computador avaliasse 1 milhão de estados por segundo, demoraria **mais de 500 anos** a explorar todas as combinações. Isto torna a procura exaustiva completamente impraticável, justificando o uso de Simulated Annealing.
@@ -652,7 +702,42 @@ O rácio de km percorridos por EVs também melhorou com o A\*:
 - BFS: 47.0% dos km por EVs
 - A\* + SA: 49.3% dos km por EVs
 
-*4. Eficiência Operacional*
+*5. Comparação dos Algoritmos de Atribuição*
+
+Para isolar o impacto dos algoritmos de atribuição, comparamos os três algoritmos usando A\* como routing fixo:
+
+#figure(
+  table(
+    columns: (auto, auto, auto, auto, auto, auto),
+    align: (left, right, right, right, right, right),
+    stroke: 0.5pt + gray,
+    fill: (row, col) => if row == 0 { luma(230) } else if row == 3 { luma(235) } else { white },
+    [*Algoritmo*], [*Tempo Real (s)*], [*Completos*], [*Espera (min)*], [*CO2 (kg)*], [*Lucro (€)*],
+    [Greedy], [9 153], [11 613], [13.22], [6 392], [*79 629*],
+    [Hill Climbing], [9 022], [*11 921*], [11.82], [6 121], [79 331],
+    [Simulated Annealing], [9 114], [*11 921*], [*11.72*], [*6 029*], [79 349],
+  ),
+  caption: [Comparação dos Algoritmos de Atribuição (A\* fixo, 28 dias simulados)],
+) <tab:assignment-comparison>
+
+*Análise dos Resultados*:
+
+- *Greedy*: Maior lucro (€79 629) mas pior serviço — 308 pedidos a menos e 1.5 min mais de espera. O lucro extra vem de aceitar apenas viagens fáceis/rentáveis.
+
+- *Hill Climbing vs. Simulated Annealing*: Resultados quase idênticos (11 921 completos, ~11.8 min espera). Isto sugere que:
+  1. A função de custo tem poucos mínimos locais
+  2. O Hill Climbing consegue escapar dos poucos mínimos locais porque a reavaliação contínua (novos pedidos chegam) força novas procuras
+
+- *Simulated Annealing*: Ligeira vantagem em CO2 (−92 kg vs. HC) e espera (−0.1 min). A exploração aleatória permite encontrar atribuições que favorecem EVs.
+
+*Por que o Hill Climbing iguala o SA?*
+
+O problema de atribuição neste cenário tem características que favorecem o Hill Climbing:
+1. *Dimensão moderada*: Com 10 veículos, o espaço de estados é navegável
+2. *Reavaliação frequente*: A cada novo pedido, o algoritmo recomeça
+3. *Função de custo convexa*: Os pesos da @tab:custo-atribuicao criam um espaço com poucos vales profundos
+
+*6. Eficiência Operacional*
 
 #figure(
   table(
@@ -752,10 +837,42 @@ Além disso, a afinação dos parâmetros do Simulated Annealing (temperatura in
 
 Aprendemos que num problema dinâmico e real, a solução "ótima" matemática nem sempre é a melhor solução prática se demorar muito a calcular; o equilíbrio entre rapidez de decisão e qualidade da decisão é fundamental.
 
+= Apresentação da Interface
+
+A aplicação desenvolvida disponibiliza uma interface gráfica que permite visualizar e controlar a simulação em tempo real.
+
+#figure(
+  rect(width: 100%, height: 180pt, fill: luma(240), stroke: 1pt + gray)[
+    \ \ \ *Inserir screenshot: Vista do Mapa com Veículos e Pedidos*
+  ],
+  caption: [Visualização do mapa com veículos (carros) e pedidos (pessoas) em tempo real],
+)
+
+#figure(
+  rect(width: 100%, height: 180pt, fill: luma(240), stroke: 1pt + gray)[
+    \ \ \ *Inserir screenshot: Painel de Métricas*
+  ],
+  caption: [Painel lateral com métricas de desempenho (lucro, CO2, tempos de espera)],
+)
+
+A interface permite:
+- *Zoom e Navegação*: Scroll para zoom, arrastar para mover o mapa
+- *Visualização de Trânsito*: Arestas coloridas (verde→vermelho) indicam congestionamento
+- *Hotspots*: Círculos verdes/vermelhos mostram zonas de alta procura ativas/inativas
+- *Estados dos Veículos*: Ícones diferentes para EVs e veículos a combustão
+- *Configuração*: Painel para alterar algoritmos de routing/assignment em tempo real
+
 = Referências
-- Russell, S., & Norvig, P. "Artificial Intelligence: A Modern Approach".
-- Documentação OSMnx e NetworkX.
-- Boeing, G. (2017). "OSMnx: New Methods for Acquiring, Constructing, Analyzing, and Visualizing Complex Street Networks".
+
+#set enum(numbering: "[1]")
+
++ Russell, S., & Norvig, P. (2021). _Artificial Intelligence: A Modern Approach_ (4th ed.). Pearson. <russell2021>
+
++ Boeing, G. (2017). "OSMnx: New Methods for Acquiring, Constructing, Analyzing, and Visualizing Complex Street Networks". _Computers, Environment and Urban Systems_, 65, 126-139.
+
++ Instituto da Mobilidade e dos Transportes (2025). _Estatísticas TVDE Portugal_. Plataforma IMT.
+
++ Associação Automóvel de Portugal (2024). _Emissões médias de CO2 em Portugal_. Revista ACP.
 
 #heading(numbering: none)[Anexos]
 
@@ -763,5 +880,5 @@ Aprendemos que num problema dinâmico e real, a solução "ótima" matemática n
   rect(width: 100%, height: 200pt, fill: luma(240), stroke: 1pt + gray)[
     \ \ \ *Inserir aqui: Diagrama UML de Classes do Simulador*
   ],
-  caption: [Arquitetura do Sistema],
+  caption: [Arquitetura do Sistema — Diagrama de Classes],
 )

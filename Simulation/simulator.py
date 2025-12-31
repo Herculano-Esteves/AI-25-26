@@ -20,7 +20,7 @@ from Simulation.request_generator import RequestGenerator
 
 class Simulator:
     # Time constants
-    SIM_TIME_PER_TICK = 1
+    SIM_TIME_PER_TICK = 10
     MINUTES_PER_HOUR = 60
     HOURS_PER_DAY = 24
     MINUTES_PER_DAY = MINUTES_PER_HOUR * HOURS_PER_DAY

@@ -24,9 +24,9 @@ def haversine_km(lon_a, lat_a, lon_b, lat_b) -> float:
 
 
 def _heuristic_distance(a: Node, b: Node) -> float:
-    """Heurística admissível: tempo mínimo assumindo velocidade máxima."""
+    """Heurística admissível: tempo mínimo assumindo velocidade máxima (120 km/h)."""
     dist = haversine_km(a.position[0], a.position[1], b.position[0], b.position[1])
-    return calculate_time_minutes(dist, 120.0 / 60)
+    return calculate_time_minutes(dist, 120.0)  # 120 km/h
 
 
 def _reconstruct_path(came_from: Dict[Node, Node], current: Node) -> List[Node]:
