@@ -163,7 +163,7 @@ Formalmente: $S_0 = ({v_i -> emptyset}_(i=1)^(n), emptyset, {"pos", "autonomia",
 
 Este é um *problema de otimização contínua e dinâmica* — não existe um estado final discreto. O objetivo é a *minimização contínua* da função de energia:
 
-$ S^* = arg min_S E(S) quad forall t $
+$ S^* = arg min E(S) quad forall t $
 
 Características:
 1. *Sem Fim*: O sistema processa pedidos indefinidamente
@@ -429,7 +429,7 @@ onde $d$ calcula a distância (Haversine), $v$ é a velocidade permitida na via,
 *Custo da solução*: Soma dos tempos de viagem em cada aresta percorrida.
 
 #figure(
-  image("AlgoritmoDeAtribuicao.PNG", width: 40%),
+  image("AlgoritmoDeRota.PNG", width: 40%),
   caption: [Seleção do algoritmo de procura de caminho],
 )
 
@@ -444,7 +444,7 @@ Para resolver este subproblema, implementamos três algoritmos:
     stroke: 0.5pt + gray,
     fill: (row, col) => if row == 0 { luma(230) } else { white },
     [*Algoritmo*], [*Descrição*], [*Tipo*],
-    [BFS], [Explora camada por camada. Garante menor número de "saltos".], [Não Informada],
+    [BFS (Breadth-First Search)], [Explora camada por camada. Garante menor número de "saltos".], [Não Informada],
     [Greedy], [Escolhe sempre o nó com menor heurística $h(n)$.], [Informada],
     [A\*], [Minimiza $f(n) = g(n) + h(n)$. Garante caminho ótimo se $h$ admissível.], [Informada],
   ),
@@ -569,8 +569,8 @@ A função `assign_pending_requests` é o componente central do sistema de decis
 A função de custo utilizada para preencher a matriz é detalhada na @tab:custo-atribuicao.
 
 #figure(
-  image("AlgoritmoDeRota.PNG", width: 40%),
-  caption: [Seleção do algoritmo de otimização de atribuições],
+  image("AlgoritmoDeAtribuicao.PNG", width: 40%),
+  caption: [Seleção do algoritmo de atribuições],
 )
 
 = Reprodutibilidade e Determinismo
@@ -814,7 +814,7 @@ Os km vazios (deslocações para recolha e desvios a estações) impactam custos
     [BFS], [Sim. Annealing], [140 017], [69 453], [49.6%],
     [Greedy], [Greedy], [139 610], [67 254], [48.2%],
     [Greedy], [Hill Climbing], [135 637], [64 997], [47.9%],
-    [Greedy], [Sim. Annealing], [134 718], [64 851], [48.1%],
+    [Greedy], [Sim. Annealing], [*134 718*], [64 851], [48.1%],
     [A\*], [Greedy], [141 138], [66 524], [47.1%],
     [A\*], [Hill Climbing], [137 493], [64 540], [46.9%],
     [A\*], [SA], [136 790], [*63 937*], [*46.7%*],
