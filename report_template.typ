@@ -143,10 +143,17 @@ O sistema possui um estado $S_t$ num instante $t$, definido como um tuplo $S_t =
 
 Esta representação permite avaliar não só o custo imediato, mas também a viabilidade futura (ex: evitar atribuições que deixariam um veículo sem autonomia).
 
-*Tipo de problema*: O problema da TaxiGreen classifica-se como um problema de Otimização Combinatória em Ambiente Dinâmico.
-- *Combinatório*: A escolha de atribuições veículo-pedido é discreta.
-- *Dinâmico*: O ambiente muda (novos pedidos, trânsito) independentemente das ações do agente.
-- *Parcialmente Observável*: O futuro (novos pedidos) é desconhecido, apenas estimado probabilisticamente.
+*Tipo de problema*: O problema da TaxiGreen classifica-se como um problema de *Otimização Combinatória em Ambiente Dinâmico e Estocástico*.
+
+- *Combinatório*: A escolha de atribuições veículo-pedido é discreta. Com $N$ veículos e $M$ pedidos, existem $(M+1)^N$ configurações possíveis — um espaço de estados exponencial que inviabiliza procura exaustiva.
+- *Dinâmico*: O ambiente muda independentemente das ações do agente — novos pedidos surgem, o trânsito varia, estações falham e a meteorologia evolui ao longo do tempo.
+- *Estocástico*: Os processos que governam o ambiente são probabilísticos:
+  - Chegada de pedidos: Processo de Poisson não-homogéneo com taxa $lambda(t)$ variável
+  - Trânsito: Ruído de Perlin 3D para variabilidade espacial e temporal orgânica
+  - Meteorologia: Ruído de Perlin 1D para transições suaves entre estados
+  - Falhas de infraestrutura: Probabilidade de 0.01% por tick de simulação
+  - Atributos de pedidos: Prioridade, passageiros e preferências gerados aleatoriamente
+- *Parcialmente Observável*: O futuro (novos pedidos, evolução do trânsito) é desconhecido no momento da decisão, exigindo planeamento adaptativo.
 
 === Estado Inicial ($S_0$)
 
