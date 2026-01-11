@@ -141,7 +141,6 @@ class BenchmarkRunner:
             self.executor = executor
             future_to_config = {}
 
-            # Submete todas as tarefas
             for config in self.configs:
                 if self.should_stop:
                     break
@@ -151,7 +150,6 @@ class BenchmarkRunner:
                 )
                 future_to_config[future] = config
 
-            # Processa os resultados conforme ficam prontos
             for future in concurrent.futures.as_completed(future_to_config):
                 if self.should_stop:
                     break
@@ -164,7 +162,6 @@ class BenchmarkRunner:
                         self.results.append(data)
                         self._save_single_result(data)
 
-                        # Callback para a UI (thread-safe geralmente necessário dependendo do framework GUI)
                         msg = f"Finalizado: {data['routing']}/{data['assignment']} (Lucro: {data['profit']:.2f})"
                         self.update_callback(msg)
                     else:

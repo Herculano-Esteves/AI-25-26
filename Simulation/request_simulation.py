@@ -134,7 +134,6 @@ def assign_pending_requests(sim: "Simulator"):
 
     pending = list(sim.requests)
 
-    # Veículos livres ou a caminho do cliente (podem ser redireccionados)
     available = [
         v
         for v in sim.vehicles
@@ -197,7 +196,6 @@ def assign_pending_requests(sim: "Simulator"):
 
     assignment = solve_assignment(_assignment_algo, sim, cost_matrix, pending, temp)
 
-    # Libertar veículos que vão mudar de pedido
     for v_idx, r_idx in enumerate(assignment):
         v = available[v_idx]
         new_req = pending[r_idx] if r_idx != -1 else None
@@ -213,14 +211,12 @@ def assign_pending_requests(sim: "Simulator"):
             v.condition = VehicleCondition.AVAILABLE
             v.current_route = []
 
-    # Aplicar novas atribuições
     for v_idx, r_idx in enumerate(assignment):
         if r_idx != -1:
             v, req = available[v_idx], pending[r_idx]
             if v.request != req:
                 _assign(sim, req, v)
 
-    # Garantir que pedidos não atribuídos voltam à fila
     for req in pending:
         active = req in sim.requests_to_pickup or req in sim.requests_to_dropoff
         if not active and req not in sim.requests:

@@ -13,7 +13,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from mapGen import generate_map
 from Simulation.search_algorithms import bfs_route, greedy_route, astar_route
 
-# Modificar funções para contar nós visitados
 def bfs_with_stats(graph, start, end):
     """BFS que retorna também nós visitados."""
     from collections import deque
@@ -44,7 +43,6 @@ def bfs_with_stats(graph, start, end):
     if end not in came_from:
         return None, 0.0, 0.0, len(visited)
     
-    # Reconstrói caminho
     path = [end]
     current = end
     while current in came_from:
@@ -52,7 +50,6 @@ def bfs_with_stats(graph, start, end):
         path.append(current)
     path = list(reversed(path))
     
-    # Calcula custos
     total_time, total_dist = 0.0, 0.0
     for i in range(len(path) - 1):
         edge = graph.connection_weight(path[i], path[i + 1])
@@ -137,7 +134,7 @@ def astar_with_stats(graph, start, end):
                 came_from[neighbor] = current
                 g_score[neighbor] = tentative_g
                 d_score[neighbor] = d_score[current] + dist
-                f = tentative_g + _heuristic_distance(neighbor, end)  # Usa a heurística corrigida
+                f = tentative_g + _heuristic_distance(neighbor, end)  
                 
                 if neighbor not in in_heap:
                     heapq.heappush(heap, (f, id(neighbor), neighbor))
