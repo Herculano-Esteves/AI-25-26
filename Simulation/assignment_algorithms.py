@@ -117,7 +117,6 @@ def simulated_annealing_solver(
     n_vehicles = cost_matrix.shape[0]
     n_requests = cost_matrix.shape[1]
 
-    # Solução inicial
     assignment = [-1] * n_vehicles
     backlog = set(range(n_requests))
 
@@ -154,7 +153,6 @@ def simulated_annealing_solver(
 
         delta = neighbor_energy - current_energy
 
-        # Critério de Metropolis
         accept = delta <= 0 or (temp > 0.01 and random.random() < math.exp(-delta / temp))
 
         if accept:
@@ -187,7 +185,6 @@ def greedy_solver(
     assignment = [-1] * n_vehicles
     assigned = set()
 
-    # Ordenar por custo crescente
     moves = [
         (cost_matrix[v, r], v, r)
         for v in range(n_vehicles)

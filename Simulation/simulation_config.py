@@ -30,4 +30,4 @@ class PlanningConfig:
     BACKLOG_BASE_PENALTY = 160.0  # Custo fixo por deixar alguém para trás
 
     # Profit Optimization
-    WEIGHT_PROFIT = 10.0  # Multiplier for profit (negative cost)
+    WEIGHT_PROFIT = 10.0  # Multiplier for profit 

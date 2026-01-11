@@ -104,7 +104,6 @@ class RequestGenerator:
             start = self.rng.choice(all_nodes)
             end = self.rng.choice(all_nodes)
 
-        # Fallback
         start = start or self.rng.choice(all_nodes)
         end = end or self.rng.choice(all_nodes)
 
@@ -127,7 +126,6 @@ class RequestGenerator:
         priority = self._get_priority(creation_time)
         eco = self.rng.random() < 0.3
 
-        # Preço: grupos grandes pagam mais
         multiplier = 1.3 if pax > 4 else 1.0
         price = (self.BASE_FARE + dist * self.PRICE_PER_KM) * multiplier
 

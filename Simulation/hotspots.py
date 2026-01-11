@@ -10,8 +10,8 @@ class Hotspot:
     def __init__(self, name: str, coords: Tuple[float, float], hours: List[Tuple[int, int]],
                  weight: float = 1.0, radius_km: float = 0.5):
         self.name = name
-        self.coordinates = coords  # (lon, lat)
-        self.active_hours = hours  # [(start, end), ...]
+        self.coordinates = coords 
+        self.active_hours = hours  
         self.weight = weight
         self.radius_km = radius_km
         self.is_active = False
@@ -81,7 +81,7 @@ class HotspotManager:
                 if dist <= h.radius_km:
                     nearby.append(node)
 
-            # Fallback: se mapa esparso, usa os 3 mais próximos
+            
             if not nearby:
                 dummy = Node(h.coordinates)
                 nearby = sorted(all_nodes, key=lambda n: _heuristic_distance(n, dummy))[:3]
