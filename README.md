@@ -55,7 +55,7 @@ Fleet Simulator was created by:
 
 | Member | Institution | Role / Study Area |
 | :--- | :--- | :--- |
-| **[Herculano Esteves](https://github.com/Herculano-Esteves)** (a107293) | Universidade do Minho | Software Engineering |
+| **[Herculano Esteves](https://github.com/Herculano-Esteves)** (a106839) | Universidade do Minho | Software Engineering |
 | **[Nuno Fernandes](https://github.com/nunom27)** (a107317) | Universidade do Minho | Software Engineering |
 | **[Salomé Faria](https://github.com/faria-s)** (a108487) | Universidade do Minho | Software Engineering |
 | **[Tiago Alves](https://github.com/Tiagohvv)** (a106883) | Universidade do Minho | Software Engineering |
