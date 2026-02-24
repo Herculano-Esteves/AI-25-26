@@ -17,12 +17,13 @@ We built this project to simulate and analyze the complexities of urban fleet ma
 ## Screenshots
 
 <p align="center">
-  <img src="images/app/mainScreen.png" alt="Main Screen" width="400" style="border-radius: 10px; margin: 10px;" />
-  <img src="images/app/map.png" alt="Map View" width="400" style="border-radius: 10px; margin: 10px;" />
+  <img src="images/app/mainScreen.png" alt="Main Screen" width="600" style="border-radius: 10px; margin: 10px;" />
 </p>
 <p align="center">
-  <img src="images/app/metrics.png" alt="Metrics Panel" width="400" style="border-radius: 10px; margin: 10px;" />
-  <img src="images/app/benchmarkResults.png" alt="Benchmark Results" width="400" style="border-radius: 10px; margin: 10px;" />
+  <img src="images/app/map.png" alt="Map View" width="600" style="border-radius: 10px; margin: 10px;" />
+</p>
+<p align="center">
+  <img src="images/app/benchmarkResults.png" alt="Benchmark Results" width="600" style="border-radius: 10px; margin: 10px;" />
 </p>
 
 ## Key Features
